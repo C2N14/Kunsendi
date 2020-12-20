@@ -1,0 +1,70 @@
+version: '3'
+
+services: 
+  flask:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      args:
+        - DEBUG=1
+        - ENV_TYPE=development
+    container_name: flask
+    restart: always
+    command: flask run --host 0.0.0.0 --port 5000
+    environment: 
+      FLASK_APP: /kunsendi/app.py
+      FLASK_SECRET_KEY: /run/secrets/flask_secret_key
+      MONGO_DATABASE: apidb
+      MONGO_ROOT_USERNAME_FILE: /run/secrets/mongodb_root_user
+      MONGO_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+    secrets:
+      - flask_secret_key
+      - mongodb_root_user
+      - mongodb_root_password
+    ports:
+      - '5000:5000'
+      - '5678:5678'
+    volumes: 
+      - ./api:/kunsendi
+    depends_on:
+      - mongodb
+    networks: 
+      - frontend
+      - backend
+  
+  mongodb:
+    image: mongo:4.0
+    container_name: mongodb
+    restart: always
+    command: mongod --auth
+    environment: 
+      MONGO_INITDB_DATABASE: apidb
+      MONGO_INITDB_ROOT_USERNAME_FILE: /run/secrets/mongodb_root_user
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+      MONGODB_DATA_DIR: /data/db
+      MONDODB_LOG_DIR: /dev/null
+    secrets:
+      - mongodb_root_user
+      - mongodb_root_password
+    volumes:
+      - dbdata:/data/db
+    networks: 
+      - backend
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local
+
+secrets:
+  flask_secret_key:
+    file: ./flask_secret_key.txt
+  mongodb_root_user:
+    file: ./mongodb_username.txt
+  mongodb_root_password:
+    file: ./mongodb_password.txt

@@ -1,0 +1,12 @@
+# Development tools
+pyenv/
+
+# Binaries
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Secrets
+flask_secret_key.txt
+mongodb_username.txt
+mongodb_password.txt
