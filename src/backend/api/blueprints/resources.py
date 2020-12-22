@@ -1,4 +1,4 @@
-from flask import Blueprint
+from flask import Blueprint, send_file
 
 resources_blueprint = Blueprint('resources', __name__)
 
@@ -15,4 +15,9 @@ def post_image():
 
 @resources_blueprint.route('/images', methods=['DELETE'])
 def delete_image():
+    pass
+
+
+def allowed_file(filename):
+    """Auxiliary function for validating sent file extensions"""
     pass
