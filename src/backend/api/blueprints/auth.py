@@ -4,16 +4,10 @@ from flask import Blueprint, jsonify
 from mongoengine.errors import DoesNotExist, NotUniqueError, ValidationError
 from http import HTTPStatus
 from werkzeug.security import check_password_hash
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 import jwt
 
-from .. import models, utils, SECRET_KEY
-
-# in minutes
-ACCESS_TOKEN_EXPIRATION = 15
-
-# in days
-REFRESH_TOKEN_EXPIRATION = 3
+from .. import models, utils, SECRET_KEY, ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION
 
 auth_blueprint = Blueprint('auth', __name__)
 
@@ -23,18 +17,11 @@ class WrongCredentialsError(Exception):
     pass
 
 
-@auth_blueprint.route('/auth/users/<username>', methods=['GET'])
-def get_username_available(username):
-    available = not models.User.objects.get(username=username)
-    return jsonify({'avaliable': available}), HTTPStatus.OK
-
-
 @auth_blueprint.route('/auth/users', methods=['POST'])
 @utils.valid_json_payload({str: ('username', 'email', 'password')})
 def register_user(**kwargs):
     try:
         payload = kwargs['payload']
-
         user = models.User(username=payload['username'],
                            email=payload['email'],
                            password=payload['password'])
@@ -59,9 +46,20 @@ def register_user(**kwargs):
 @utils.token_required('access')
 def delete_user(**kwargs):
     token_payload = kwargs['token_payload']
-    models.User.objects.get(id=token_payload['user_id']).delete()
+    user = models.User.objects.get(id=token_payload['user_id'])
 
-    return '', HTTPStatus.OK
+    # delete user uploads
+    models.Image.objects(uploader_id=user.id).delete()
+
+    user.delete()
+
+    return '', HTTPStatus.NO_CONTENT
+
+
+@auth_blueprint.route('/auth/users/<username>', methods=['GET'])
+def get_username_available(username):
+    available = not models.User.objects.get(username=username)
+    return jsonify({'avaliable': available}), HTTPStatus.OK
 
 
 @auth_blueprint.route('/auth/sessions', methods=['GET'])
@@ -85,12 +83,12 @@ def user_login(**kwargs):
 
         tokens = generate_tokens(str(user.id))
 
-    except (DoesNotExist, WrongCredentialsError) as e:
+    except (DoesNotExist, WrongCredentialsError):
         return jsonify({
             'msg':
             'Wrong credentials',
             'err':
-            f'Couldn\'t verify identity for user {payload["username"]}'
+            f'Couldn\'t verify identity for user {payload["username"]}'  # nopep8
         }), HTTPStatus.FORBIDDEN
 
     return jsonify(tokens), HTTPStatus.CREATED
@@ -107,19 +105,15 @@ def generate_tokens(user_id):
         'iat': now.timestamp(),
         'sub': user_id,
     }
-
     access_payload = {
         'exp': (now + timedelta(seconds=ACCESS_TOKEN_EXPIRATION)).timestamp(),
         'type': 'access'
     }
-
     refresh_payload = {
-        'exp': (now + timedelta(seconds=ACCESS_TOKEN_EXPIRATION)).timestamp(),
+        'exp': (now + timedelta(seconds=REFRESH_TOKEN_EXPIRATION)).timestamp(),
         'type': 'refresh'
     }
-
     tokens['access_token'] = jwt.encode({**payload, **access_payload}, \
                                         key=SECRET_KEY).decode('utf-8')
-
     tokens['access_token'] = jwt.encode({**payload, **refresh_payload}, \
                                         key=SECRET_KEY).decode('utf-8')

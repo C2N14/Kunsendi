@@ -2,16 +2,17 @@
 
 ## HTTP Methods
 
-| HTTP Method | Relative URL    | Data sent                       | Requires JWT | Result                          | Data received                                                     |
-| ----------- | --------------- | ------------------------------- | :----------: | ------------------------------- | ----------------------------------------------------------------- |
-| `GET`       | /auth/users/xxx | _none_                          |      no      | Checks if username is available | `available`                                                       |
-| `POST`      | /auth/users     | `username`, `email`, `password` |      no      | Registers a new user            | `user_id`                                                         |
-| `DELETE`    | /auth/users     | _none_                          |     yes      | Deletes the user                | _none_                                                            |
-| `GET`       | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens            | `access_token`, `refresh_token`                                   |
-| `POST`      | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens         | `access_token`, `refresh_token`                                   |
-| `GET`       | /images         | _none_                          |     yes      | Returns images                  | [`uploader`, `url`, `date`, `title`, `size`: [`width`, `height`]] |
-| `POST`      | /images         | **multipart/form-data**         |     yes      | Uploads a new image             | `image_id`                                                        |
-| `DELETE`    | /images         | `image_id`                      |     yes      | Deletes the image               | _none_                                                            |
+| HTTP Method | Relative URL    | Data sent                       | Requires JWT | Result                           | Data received                                |
+| ----------- | --------------- | ------------------------------- | :----------: | -------------------------------- | -------------------------------------------- |
+| `POST`      | /auth/users     | `username`, `email`, `password` |      no      | Registers a new user             | `user_id`                                    |
+| `DELETE`    | /auth/users     | _none_                          |     yes      | Deletes a user                   | _none_                                       |
+| `GET`       | /auth/users/xxx | _none_                          |      no      | Checks if username is available  | `available`                                  |
+| `GET`       | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens             | `access_token`, `refresh_token`              |
+| `POST`      | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens          | `access_token`, `refresh_token`              |
+| `GET`       | /images         | _none_                          |     yes      | Returns information about images | [`uploader`, `url`, `date`, `title`, `size`] |
+| `POST`      | /images         | **multipart/form-data**         |     yes      | Uploads a new image              | `image_id`                                   |
+| `GET`       | /images/xxx     | _none_                          |     yes      | Returns an image file            | **image/[jpg, png, gif]**                    |
+| `DELETE`    | /images/xxx     | _none_                          |     yes      | Deletes an image                 | _none_                                       |
 
 
 ### Notes:
@@ -35,3 +36,6 @@
 
 ### /images
 * TODO
+
+## Error responses
+TODO

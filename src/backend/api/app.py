@@ -3,12 +3,13 @@ from .blueprints import auth, resources
 import os
 from http import HTTPStatus
 
+from . import MAX_CONTENT_LENGTH
+
 
 def create_app():
     app = Flask(__name__)
 
-    # Limit payload to 10MB
-    app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+    app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
     with app.app_context():
 

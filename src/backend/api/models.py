@@ -24,7 +24,7 @@ with open(os.environ['MONGO_ROOT_USERNAME_FILE']) as user_f, \
 class User(db.Document):
     """
     Model for User document.
-    Password is specified as cleartext when the object is created, but validated and hashed once saved
+    Password is specified as cleartext when the object is created, but validated and hashed once saved.
     """
 
     username = db.StringField(required=True,
@@ -40,7 +40,8 @@ class User(db.Document):
 
     def clean(self):
         if not (8 <= len(self.password) <= 128):
-            raise ValidationError('Invalid password length.')
+            raise ValidationError('Invalid password length.',
+                                  field_name='password')
 
         self.password = generate_password_hash(self.password)
 
@@ -48,6 +49,6 @@ class User(db.Document):
 class Image(db.Document):
     """Model for Image document"""
 
-    filename = db.StringField(required=True, default=file_uuid().hex)
-    user_id = db.ObjectIdField(required=True)
+    extension = db.StringField(required=True)
+    uploader_id = db.ObjectIdField(required=True)
     date = db.DateTimeField(required=True, default=datetime.utcnow())
