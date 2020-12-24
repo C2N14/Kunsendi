@@ -3,3 +3,4 @@ mongoengine==0.22.0
 PyJWT==1.7.1
 bcrypt==3.2.0
 Werkzeug==1.0.1
+imagesize==1.2.0

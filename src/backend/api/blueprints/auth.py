@@ -1,6 +1,7 @@
 import os
 
 from flask import Blueprint, jsonify
+from flask.globals import request
 from mongoengine.errors import DoesNotExist, NotUniqueError, ValidationError
 from http import HTTPStatus
 from werkzeug.security import check_password_hash
@@ -15,6 +16,36 @@ auth_blueprint = Blueprint('auth', __name__)
 class WrongCredentialsError(Exception):
     """Exception to raise when login details are wrong"""
     pass
+
+
+@auth_blueprint.route('/auth/users', methods=['GET'])
+@utils.token_required('access')
+def get_user_info(**kwargs):
+    try:
+        # query parameters
+        id_arg = request.args.get('id')
+        username_arg = request.args.get('username')
+
+        # this strange structure gives priority to the id arg over the username
+        # arg, and defaults to using the id of the jwt when needed
+        if id_arg is None and username_arg is not None:
+            username = username_arg
+            user_id = str(models.User.objects.get(username=username_arg).id)
+
+        else:
+            if id_arg is not None:
+                user_id = id_arg
+            else:
+                user_id = kwargs['token_payload']['sub']
+            username = models.User.objects.get(id=user_id).username
+
+    except DoesNotExist as e:
+        return jsonify({
+            'msg': 'User info not found',
+            'err': e.message
+        }), HTTPStatus.NOT_FOUND
+
+    return jsonify({'user_id': user_id, 'username': username}), HTTPStatus.OK
 
 
 @auth_blueprint.route('/auth/users', methods=['POST'])
@@ -66,7 +97,7 @@ def get_username_available(username):
 @utils.token_required('refresh')
 def token_refresh(**kwargs):
     token_payload = kwargs['token_payload']
-    tokens = generate_tokens(token_payload['user_id'])
+    tokens = generate_tokens(token_payload['sub'])
 
     return jsonify(tokens), HTTPStatus.OK
 
@@ -88,7 +119,7 @@ def user_login(**kwargs):
             'msg':
             'Wrong credentials',
             'err':
-            f'Couldn\'t verify identity for user {payload["username"]}'  # nopep8
+            f'Couldn\'t verify identity for user {payload["username"]}'
         }), HTTPStatus.FORBIDDEN
 
     return jsonify(tokens), HTTPStatus.CREATED
@@ -101,19 +132,23 @@ def generate_tokens(user_id):
 
     now = datetime.now()
 
-    payload = {
+    # base token from which to differentiate access and refresh
+    base_payload = {
         'iat': now.timestamp(),
         'sub': user_id,
     }
+
     access_payload = {
-        'exp': (now + timedelta(seconds=ACCESS_TOKEN_EXPIRATION)).timestamp(),
+        'exp': (now + ACCESS_TOKEN_EXPIRATION).timestamp(),
         'type': 'access'
     }
     refresh_payload = {
-        'exp': (now + timedelta(seconds=REFRESH_TOKEN_EXPIRATION)).timestamp(),
+        'exp': (now + REFRESH_TOKEN_EXPIRATION).timestamp(),
         'type': 'refresh'
     }
-    tokens['access_token'] = jwt.encode({**payload, **access_payload}, \
+    tokens['access_token'] = jwt.encode({**base_payload, **access_payload}, \
                                         key=SECRET_KEY).decode('utf-8')
-    tokens['access_token'] = jwt.encode({**payload, **refresh_payload}, \
+    tokens['refresh_token'] = jwt.encode({**base_payload, **refresh_payload}, \
                                         key=SECRET_KEY).decode('utf-8')
+
+    return tokens

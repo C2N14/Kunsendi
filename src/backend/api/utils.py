@@ -16,6 +16,8 @@ def token_required(token_type):
         """
         Decorator for methods that require a valid JWT token.
         Must specify if an access or refresh token is required.
+
+        If successful, this passes the decoded token to the function's kwargs.
         """
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -76,6 +78,8 @@ def valid_json_payload(fields_dict):
     
     E. g.
     @valid_json_payload({str: ['username', 'password'], int: ['age']})
+
+    If successful, this passes the payload to the function's kwargs.
     """
     def decorator(f):
         @wraps(f)

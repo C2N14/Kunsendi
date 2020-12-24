@@ -2,17 +2,18 @@
 
 ## HTTP Methods
 
-| HTTP Method | Relative URL    | Data sent                       | Requires JWT | Result                           | Data received                                |
-| ----------- | --------------- | ------------------------------- | :----------: | -------------------------------- | -------------------------------------------- |
-| `POST`      | /auth/users     | `username`, `email`, `password` |      no      | Registers a new user             | `user_id`                                    |
-| `DELETE`    | /auth/users     | _none_                          |     yes      | Deletes a user                   | _none_                                       |
-| `GET`       | /auth/users/xxx | _none_                          |      no      | Checks if username is available  | `available`                                  |
-| `GET`       | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens             | `access_token`, `refresh_token`              |
-| `POST`      | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens          | `access_token`, `refresh_token`              |
-| `GET`       | /images         | _none_                          |     yes      | Returns information about images | [`uploader`, `url`, `date`, `title`, `size`] |
-| `POST`      | /images         | **multipart/form-data**         |     yes      | Uploads a new image              | `image_id`                                   |
-| `GET`       | /images/xxx     | _none_                          |     yes      | Returns an image file            | **image/[jpg, png, gif]**                    |
-| `DELETE`    | /images/xxx     | _none_                          |     yes      | Deletes an image                 | _none_                                       |
+| HTTP Method | Relative URL    | Data sent                       | Requires JWT | Result                           | Data received                                  |
+| ----------- | --------------- | ------------------------------- | :----------: | -------------------------------- | ---------------------------------------------- |
+| `GET`       | /auth/users     | _none_                          |     yes      | Returns information about a user | user_id, username                              |
+| `POST`      | /auth/users     | `username`, `email`, `password` |      no      | Registers a new user             | `user_id`                                      |
+| `DELETE`    | /auth/users     | _none_                          |     yes      | Deletes a user                   | _none_                                         |
+| `GET`       | /auth/users/xxx | _none_                          |      no      | Checks if username is available  | `available`                                    |
+| `GET`       | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens             | `access_token`, `refresh_token`                |
+| `POST`      | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens          | `access_token`, `refresh_token`                |
+| `GET`       | /images         | _none_                          |     yes      | Returns information about images | [`uploader`, `url`, `date`, `width`, `height`] |
+| `POST`      | /images         | **multipart/form-data**         |     yes      | Uploads a new image              | `image_id`                                     |
+| `GET`       | /images/xxx     | _none_                          |     yes      | Returns an image file            | **image/[jpg, png, gif]**                      |
+| `DELETE`    | /images/xxx     | _none_                          |     yes      | Deletes an image                 | _none_                                         |
 
 
 ### Notes:
@@ -20,7 +21,7 @@
 * Session (*access* or *refresh*) JWTs must be sent in the Authorization header when necessary.
 * The token in the header must be an *access* token, except when refreshing the tokens.
 * *Access* tokens expire after 15 minutes and *refresh* tokens after 3 days.
-* When querying images, an array of objects is returned
+* When querying images, an array of objects is returned in descending order by upload date.
 
 ## Restrictions on `POST` requests
 
@@ -34,8 +35,27 @@
 
 ## Query parameters of `GET` requests
 
-### /images
-* TODO
+### /auth/users
+* `id` The user id.
+* `username` The username.
+If neither `id` nor `username` are specified, information about the user who sent the request is returned.
 
-## Error responses
-TODO
+### /images
+* `uploader` The username of the uploader.
+* `uploader_id` The user id of the uploader.
+* `from`An epoch/unix timestamp of the lower limit of upload date
+* `to` An epoch/unix timestamp of the upper limit of upload date. If not specified, images up to the current time will be returned.
+* `limit` The maximum number of items to be returned, which can be any positive integer up to 100. If not specified, a maximum of 50 images will be returned.
+If neither `uploader` nor `uploader_id` are specified, images from all users are returned.
+
+## Status codes & error responses
+If the request was successful, the response code will be according to the method of the request:
+|  Method  | Success code |
+| :------: | :----------: |
+|  `GET`   |     `OK`     |
+|  `POST`  |  `CREATED`   |
+| `DELETE` | `NO CONTENT` |
+
+If there was an error with the request itself, an object with `msg` and `err` detailing the cause of the failure will be returned, and sent with a client error status code (4XX).
+
+Finally, in the case of a server error a 500 status code will be returned.
