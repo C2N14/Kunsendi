@@ -1,0 +1,27 @@
+[
+    {
+        "username": "John.Doe",
+        "email": "hello_world@example.com",
+        "password": "h4x0rDud3s"
+    },
+    {
+        "username": "Ce-Dos",
+        "email": "mail@example.com",
+        "password": "PassWordLol"
+    },
+    {
+        "username": "ale_tuls",
+        "email": "rockstar@example.com",
+        "password": "FutureTTCeleb99"
+    },
+    {
+        "username": "LOREM.-IPSUM",
+        "email": "dolorsit@example.com",
+        "password": "FlaskAppExample"
+    },
+    {
+        "username": "Elliot.Alderson",
+        "email": "evilcorp@example.com",
+        "password": "4B/#=B6]cp=wrJd'N;]ECN.a729`>t"
+    }
+]

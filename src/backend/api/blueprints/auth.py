@@ -1,14 +1,14 @@
-import os
+from datetime import datetime
+from http import HTTPStatus
 
+import jwt
 from flask import Blueprint, jsonify
 from flask.globals import request
 from mongoengine.errors import DoesNotExist, NotUniqueError, ValidationError
-from http import HTTPStatus
 from werkzeug.security import check_password_hash
-from datetime import datetime, timedelta
-import jwt
 
-from .. import models, utils, SECRET_KEY, ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION
+from .. import (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION, SECRET_KEY,
+                models, utils)
 
 auth_blueprint = Blueprint('auth', __name__)
 
@@ -42,7 +42,7 @@ def get_user_info(**kwargs):
     except DoesNotExist as e:
         return jsonify({
             'msg': 'User info not found',
-            'err': e.message
+            'err': str(e)
         }), HTTPStatus.NOT_FOUND
 
     return jsonify({'user_id': user_id, 'username': username}), HTTPStatus.OK
@@ -62,13 +62,13 @@ def register_user(**kwargs):
         return jsonify({
             'msg': 'Invalid parameters',
             'err': e.message
-        }), HTTPStatus.FORBIDDEN
+        }), HTTPStatus.BAD_REQUEST
 
     except NotUniqueError:
         return jsonify({
             'msg': 'Username not unique',
             'err': payload['username']
-        }), HTTPStatus.FORBIDDEN
+        }), HTTPStatus.BAD_REQUEST
 
     return jsonify({'user_id': str(user.id)}), HTTPStatus.CREATED
 
@@ -76,21 +76,34 @@ def register_user(**kwargs):
 @auth_blueprint.route('/auth/users', methods=['DELETE'])
 @utils.token_required('access')
 def delete_user(**kwargs):
-    token_payload = kwargs['token_payload']
-    user = models.User.objects.get(id=token_payload['user_id'])
+    try:
+        token_payload = kwargs['token_payload']
+        user = models.User.objects.get(id=token_payload['sub'])
 
-    # delete user uploads
-    models.Image.objects(uploader_id=user.id).delete()
+        # delete user uploads
+        models.Image.objects(uploader_id=user.id).delete()
 
-    user.delete()
+        user.delete()
+
+    except DoesNotExist as e:
+        return jsonify({
+            'msg': 'User doesn\'t exist anymore',
+            'err': str(e)
+        }), HTTPStatus.NOT_FOUND
 
     return '', HTTPStatus.NO_CONTENT
 
 
 @auth_blueprint.route('/auth/users/<username>', methods=['GET'])
 def get_username_available(username):
-    available = not models.User.objects.get(username=username)
-    return jsonify({'avaliable': available}), HTTPStatus.OK
+    try:
+        models.User.objects.get(username=username)
+    except DoesNotExist:
+        available = True
+    else:
+        available = False
+
+    return jsonify({'available': available}), HTTPStatus.OK
 
 
 @auth_blueprint.route('/auth/sessions', methods=['GET'])
@@ -120,7 +133,7 @@ def user_login(**kwargs):
             'Wrong credentials',
             'err':
             f'Couldn\'t verify identity for user {payload["username"]}'
-        }), HTTPStatus.FORBIDDEN
+        }), HTTPStatus.UNAUTHORIZED
 
     return jsonify(tokens), HTTPStatus.CREATED
 
@@ -138,17 +151,32 @@ def generate_tokens(user_id):
         'sub': user_id,
     }
 
-    access_payload = {
-        'exp': (now + ACCESS_TOKEN_EXPIRATION).timestamp(),
-        'type': 'access'
-    }
-    refresh_payload = {
-        'exp': (now + REFRESH_TOKEN_EXPIRATION).timestamp(),
-        'type': 'refresh'
-    }
-    tokens['access_token'] = jwt.encode({**base_payload, **access_payload}, \
-                                        key=SECRET_KEY).decode('utf-8')
-    tokens['refresh_token'] = jwt.encode({**base_payload, **refresh_payload}, \
-                                        key=SECRET_KEY).decode('utf-8')
+    token_types = ('access', 'refresh')
+    token_expirations = (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION)
+
+    for _type, expiration in zip(token_types, token_expirations):
+        specific_payload = {
+            'exp': (now + expiration).timestamp(),
+            'type': _type
+        }
+        tokens[f'{_type}_token'] = jwt.encode(
+            {
+                **base_payload,
+                **specific_payload
+            },
+            key=SECRET_KEY,
+            algorithm='HS256').decode('utf-8')
+        # access_payload = {
+        #     'exp': (now + ACCESS_TOKEN_EXPIRATION).timestamp(),
+        #     'type': 'access'
+        # }
+        # refresh_payload = {
+        #     'exp': (now + REFRESH_TOKEN_EXPIRATION).timestamp(),
+        #     'type': 'refresh'
+        # }
+        # tokens['access_token'] = jwt.encode({**base_payload, **access_payload}, \
+        #                                     key=SECRET_KEY), algorithm='HS256'.decode('utf-8')
+        # tokens['refresh_token'] = jwt.encode({**base_payload, **refresh_payload}, \
+        #                                     key=SECRET_KEY, algorithm='HS256').decode('utf-8')
 
     return tokens

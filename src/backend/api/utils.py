@@ -32,6 +32,7 @@ def token_required(token_type):
 
                 kwargs['token_payload'] = jwt.decode(auth_header[7:],
                                                      key=SECRET_KEY,
+                                                     algorithms=['HS256'],
                                                      verify=True)
 
                 if kwargs['token_payload']['type'] != token_type:

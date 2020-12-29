@@ -1,24 +1,9 @@
-from enum import unique
 import os
 from datetime import datetime
-from uuid import uuid4 as file_uuid
 
 import mongoengine as db
 from mongoengine.errors import ValidationError
 from werkzeug.security import generate_password_hash
-
-# 7 days in seconds
-SESSION_EXPIRATION = 604800
-
-with open(os.environ['MONGO_ROOT_USERNAME_FILE']) as user_f, \
-     open(os.environ['MONGO_ROOT_PASSWORD_FILE']) as pass_f:
-    # in Docker, the mongodb container is exposed with the hostname 'mongodb'
-    db.connect(os.environ["MONGO_DATABASE"],
-               host='mongodb',
-               port=27017,
-               username=user_f.read(),
-               password=pass_f.read(),
-               authentication_source='admin')
 
 
 class User(db.Document):
@@ -49,7 +34,8 @@ class User(db.Document):
 class Image(db.Document):
     """Model for Image document"""
 
-    date = db.DateTimeField(required=True, default=datetime.utcnow())
+    upload_date = db.DateTimeField(required=True, default=datetime.utcnow)
+
     # denormalized data is still kinda weird for me!
     uploader = db.StringField(required=True)
     uploader_id = db.ObjectIdField(required=True)

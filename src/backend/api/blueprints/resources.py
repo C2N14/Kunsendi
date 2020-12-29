@@ -1,12 +1,12 @@
 from datetime import date, datetime
-from flask import Blueprint, request, jsonify
-
 from http import HTTPStatus
+
 import imagesize
+from flask import Blueprint, jsonify, request
 
 resources_blueprint = Blueprint('resources', __name__)
 
-from .. import models, utils, ALLOWED_EXTENSIONS, UPLOAD_PATH
+from .. import ALLOWED_EXTENSIONS, UPLOAD_PATH, models, utils
 
 
 @resources_blueprint.route('/images', methods=['GET'])
@@ -15,25 +15,51 @@ def get_images(**kwargs):
     try:
         now = datetime.now()
 
-        # this also prioritizes the id arg to the name arg
+        to_arg = request.args.get('to')
+        query = {
+            'upload_date__lte':
+            datetime.utcfromtimestamp(float(to_arg) / 1000) if to_arg else now
+        }
+
+        # prioritizes the id arg to the name arg
         user_id_arg = request.args.get('uploader_id')
         username_arg = request.args.get('uploader')
-        if username_arg is not None and user_id_arg is None:
-            user_id = str(models.User.objects.get(username=username_arg).id)
-        else:
-            user_id = user_id_arg
+        if user_id_arg is not None:
+            query['uploader_id'] = user_id_arg
+        elif username_arg is not None:
+            query['uploader'] = username_arg
 
         from_arg = request.args.get('from')
         if from_arg is not None:
-            from_arg = datetime.utcfromtimestamp(float(from_arg))
-        to_arg = datetime.utcfromtimestamp(
-            float(request.args.get('to', now.timestamp())))
+            query['upload_date__gte'] = datetime.utcfromtimestamp(
+                float(from_arg) / 1000)
 
         limit_arg = request.args.get('limit')
         if limit_arg is None:
-            limit_arg = 50
-        elif (limit_arg := int(limit_arg)) > 100:
-            limit_arg = 100
+            limit = 50
+        elif not (0 < (limit := int(limit_arg)) < 100):
+            limit = 100
+
+        pipeline = [{
+            '$project': {
+                '_id': False,
+                'filename': {
+                    '$concat': [{
+                        '$toString': '$_id'
+                    }, '.', '$extension']
+                },
+                'uploader': True,
+                'upload_date': {
+                    '$toLong': '$upload_date'
+                },
+                'width': True,
+                'height': True,
+            }
+        }]
+
+        # execute the query
+        results = models.Image.objects(
+            **query).order_by('-upload_date')[:limit].aggregate(pipeline)
 
     except ValueError as e:
         return jsonify({'msg': 'Invalid parameter values', 'err': str(e)})
@@ -44,7 +70,7 @@ def get_images(**kwargs):
             'err': 'Invalid timestamp'
         })
 
-    return jsonify([user_id, from_arg, to_arg, limit_arg])
+    return jsonify(list(results)), HTTPStatus.OK
 
 
 @resources_blueprint.route('/images', methods=['POST'])
@@ -75,10 +101,10 @@ def post_image(**kwargs):
         image = models.Image(extension=extension,
                              uploader=username,
                              uploader_id=user_id)
+        filename = f'{image.id}.{extension}'
+        file.save(str(UPLOAD_PATH), filename)
 
-        file.save(str(UPLOAD_PATH), str(image.id))
-
-        image.width, image.height = imagesize.get(UPLOAD_PATH / str(image.id))
+        image.width, image.height = imagesize.get(UPLOAD_PATH / filename)
         image.save()
 
     except (TypeError, ValueError) as e:
