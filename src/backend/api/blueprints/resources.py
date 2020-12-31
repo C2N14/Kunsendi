@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from http import HTTPStatus
+from flask.helpers import send_file
 
 import imagesize
 from flask import Blueprint, jsonify, request
@@ -8,17 +9,34 @@ resources_blueprint = Blueprint('resources', __name__)
 
 from .. import ALLOWED_EXTENSIONS, UPLOAD_PATH, models, utils
 
+PROJECT_PIPELINE = {
+    '_id': False,
+    'filename': {
+        '$concat': [{
+            '$toString': '$_id'
+        }, '.', '$extension']
+    },
+    'uploader': True,
+    'upload_date': {
+        '$divide': [{
+            '$toLong': '$upload_date'
+        }, 1000]
+    },
+    'width': True,
+    'height': True,
+}
+
 
 @resources_blueprint.route('/images', methods=['GET'])
 @utils.token_required('access')
-def get_images(**kwargs):
+def get_image_info(**kwargs):
     try:
-        now = datetime.now()
+        now = datetime.utcnow()
 
         to_arg = request.args.get('to')
         query = {
             'upload_date__lte':
-            datetime.utcfromtimestamp(float(to_arg) / 1000) if to_arg else now
+            datetime.utcfromtimestamp(float(to_arg)) if to_arg else now
         }
 
         # prioritizes the id arg to the name arg
@@ -32,7 +50,7 @@ def get_images(**kwargs):
         from_arg = request.args.get('from')
         if from_arg is not None:
             query['upload_date__gte'] = datetime.utcfromtimestamp(
-                float(from_arg) / 1000)
+                float(from_arg))
 
         limit_arg = request.args.get('limit')
         if limit_arg is None:
@@ -40,22 +58,7 @@ def get_images(**kwargs):
         elif not (0 < (limit := int(limit_arg)) < 100):
             limit = 100
 
-        pipeline = [{
-            '$project': {
-                '_id': False,
-                'filename': {
-                    '$concat': [{
-                        '$toString': '$_id'
-                    }, '.', '$extension']
-                },
-                'uploader': True,
-                'upload_date': {
-                    '$toLong': '$upload_date'
-                },
-                'width': True,
-                'height': True,
-            }
-        }]
+        pipeline = [{'$project': PROJECT_PIPELINE}]
 
         # execute the query
         results = models.Image.objects(
@@ -101,10 +104,12 @@ def post_image(**kwargs):
         image = models.Image(extension=extension,
                              uploader=username,
                              uploader_id=user_id)
-        filename = f'{image.id}.{extension}'
-        file.save(str(UPLOAD_PATH), filename)
+        image.save()
 
-        image.width, image.height = imagesize.get(UPLOAD_PATH / filename)
+        file_path = UPLOAD_PATH / f'{image.id}.{extension}'
+        file.save(file_path)
+
+        image.width, image.height = imagesize.get(file_path)
         image.save()
 
     except (TypeError, ValueError) as e:
@@ -113,16 +118,30 @@ def post_image(**kwargs):
             'err': str(e)
         }), HTTPStatus.BAD_REQUEST
 
-    return jsonify({'image_id', str(image.id)}), HTTPStatus.CREATED
+    return jsonify({'filename': str(image.id)}), HTTPStatus.CREATED
 
 
-@resources_blueprint.route('/images/<image_id>', methods=['DELETE'])
+@resources_blueprint.route('/images/<filename>', methods=['GET'])
 @utils.token_required('access')
-def delete_image(image_id, **kwargs):
+def get_image(filename, **kwargs):
+    try:
+        return send_file(UPLOAD_PATH / filename, as_attachment=True)
+
+    except OSError:
+        return jsonify({
+            'msg': 'Can\'t find specified image',
+            'err': 'Filename not found'
+        }), HTTPStatus.BAD_REQUEST
+
+
+@resources_blueprint.route('/images/<filename>', methods=['DELETE'])
+@utils.token_required('access')
+def delete_image(filename, **kwargs):
     try:
         user_id = kwargs['token_payload']['sub']
 
-        image = models.Image.objects.get(id=image_id)
+        # TODO: fix this
+        image = models.Image.objects.get(id=filename.split('.')[0])
 
         if str(image.uploader_id) != user_id:
             raise RuntimeError('Image doesn\'t belong to user')
@@ -131,8 +150,8 @@ def delete_image(image_id, **kwargs):
 
     except RuntimeError as e:
         return jsonify({
-            'err': 'Can\'t delete image',
-            'msg': str(e)
+            'msg': 'Can\'t delete image',
+            'err': str(e)
         }), HTTPStatus.FORBIDDEN
 
     return '', HTTPStatus.NO_CONTENT

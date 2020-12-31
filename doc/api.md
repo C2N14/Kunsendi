@@ -10,8 +10,8 @@
 | `GET`      o | /auth/users/xxx | _none_                          |      no      | Checks if username is available  | `available`                                                |
 | `GET`      o | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens             | `access_token`, `refresh_token`                            |
 | `POST`     o | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens          | `access_token`, `refresh_token`                            |
-| `GET`        | /images         | _none_                          |     yes      | Returns information about images | [`filename`, `uploader`, `upload_date`, `width`, `height`] |
-| `POST`       | /images         | **multipart/form-data**         |     yes      | Uploads a new image              | `image_id`                                                 |
+| `GET`      o | /images         | _none_                          |     yes      | Returns information about images | [`filename`, `uploader`, `upload_date`, `width`, `height`] |
+| `POST`     o | /images         | **multipart/form-data**         |     yes      | Uploads a new image              | `filename`                                                 |
 | `GET`        | /images/xxx     | _none_                          |     yes      | Returns an image file            | **image/[jpg, png, gif]**                                  |
 | `DELETE`     | /images/xxx     | _none_                          |     yes      | Deletes an image                 | _none_                                                     |
 
@@ -22,6 +22,7 @@
 * The token in the header must be an *access* token, except when refreshing the tokens.
 * *Access* tokens expire after 15 minutes and *refresh* tokens after 3 days.
 * When querying images, an array of objects is returned in descending order by upload date.
+* Getting and deleting images requires using the full filename, not just the id
 
 ## Restrictions on `POST` requests
 
@@ -43,8 +44,8 @@ If neither `id` nor `username` are specified, information about the user who sen
 ### /images
 * `uploader` The username of the uploader.
 * `uploader_id` The user id of the uploader.
-* `from`An epoch/unix timestamp (in milliseconds) of the lower limit of upload date. If not specified, images from any starting time will be returned.
-* `to` An epoch/unix timestamp (in milliseconds) of the upper limit of upload date. If not specified, images up to the current time will be returned.
+* `from`An utc epoch/unix timestamp (in seconds) of the lower limit of upload date. If not specified, images from any starting time will be returned.
+* `to` An utc epoch/unix timestamp (in seconds) of the upper limit of upload date. If not specified, images up to the current time will be returned.
 * `limit` The maximum number of items to be returned, which can be any positive integer up to 100. If not specified, a maximum of 50 images will be returned.
 If neither `uploader` nor `uploader_id` are specified, images from all users are returned.
 

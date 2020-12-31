@@ -2,13 +2,17 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
+from unittest.mock import Mock, patch
+import filecmp
 
 import imagesize
 import jwt
+import mongomock
 from freezegun import freeze_time
 from mongoengine import connect, disconnect
 
@@ -18,14 +22,19 @@ if package_path not in sys.path:
     sys.path.append(package_path)
 
 from backend.api import (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION,
-                         UPLOAD_PATH, models)
+                         UPLOAD_PATH, models, utils)
 from backend.api.app import create_app
-from backend.tests import package_path
+from backend.tests import tests_dir
 from backend.tests.utils import token_to_header
 
-fixtures_dir = package_path / 'fixtures'
-starting_now = datetime.utcnow()
+fixtures_dir = tests_dir / 'fixtures'
+starting_now = mongomock.utcnow()
 immediate_now = starting_now + timedelta(milliseconds=1)
+
+# this is very annoying, but when retrieving images using freezegun it needs to
+# be offset by the machines current utc diff
+# https://github.com/spulec/freezegun/issues/181#issuecomment-535663007
+utc_offset = datetime.now().astimezone().utcoffset()
 
 
 class ApiTest:
@@ -74,6 +83,44 @@ class AuthenticatedApiTest(ApiTest):
             k: jwt.decode(cls.tokens[k], algorithms=['HS256'], verify=False)
             for k in cls.tokens
         }
+
+
+class ImageApiTest(AuthenticatedApiTest):
+    @classmethod
+    @freeze_time(immediate_now)
+    def setUpClass(cls):
+        super().setUpClass()
+
+        # artificially upload images (1 to 3) as uploaded by the mock users
+        cls.images_dir = fixtures_dir / 'images'
+        # cls.posted_delta = timedelta(seconds=1)
+        posted_delta = timedelta(minutes=1)
+        cls.final_posted = immediate_now + posted_delta * 2
+
+        for i, file in enumerate(cls.images_dir.glob('mock_image_[1-3].*')):
+            user = models.User.objects.get(
+                username=cls.mock_users[i]['username'])
+            image = models.Image(
+                upload_date=immediate_now + posted_delta * i,
+                uploader=user.username,
+                uploader_id=user.id,
+                extension=file.suffix[1:],
+            )
+            image.save()
+
+            file_path = UPLOAD_PATH / f'{image.id}{file.suffix}'
+            shutil.copy2(file, file_path)
+
+            image.width, image.height = imagesize.get(file_path)
+            image.save()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+
+        # remove all the uploaded images
+        for file in UPLOAD_PATH.glob('*'):
+            os.remove(file)
 
 
 class AuthenticationBasicTest(ApiTest, unittest.TestCase):
@@ -296,43 +343,19 @@ class AuthenticationFinalTest(AuthenticatedApiTest, unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
 
-class ImagesTest(AuthenticatedApiTest, unittest.TestCase):
-    @classmethod
-    @freeze_time(immediate_now)
-    def setUpClass(cls):
-        super().setUpClass()
-
-        # artificially upload images (1 to 3) as uploaded by the mock users
-        cls.images_dir = fixtures_dir / 'images'
-        cls.posted_delta = timedelta(seconds=1)
-
-        for i, file in enumerate(cls.images_dir.glob('mock_image_[1-3].*')):
-            user = models.User.objects.get(
-                username=cls.mock_users[i]['username'])
-            image = models.Image(
-                upload_date=immediate_now + cls.posted_delta * i,
-                uploader=user.username,
-                uploader_id=user.id,
-                extension=file.suffix[1:],
-            )
-            image.save()
-
-            file_path = UPLOAD_PATH / f'{image.id}{file.suffix}'
-            shutil.copy2(file, file_path)
-
-            image.width, image.height = imagesize.get(file_path)
-            image.save()
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-
-        # remove all the uploaded images
-        for file in UPLOAD_PATH.glob('*'):
-            os.remove(file)
-
-    @freeze_time(immediate_now)
-    def test_get_images(self):
+# mongomock doesn't support $toLong yet, so it must be patched for it to work
+@patch.dict('backend.api.blueprints.resources.PROJECT_PIPELINE', {
+    'upload_date': {
+        '$divide': [{
+            '$toInt': {
+                '$toDecimal': '$upload_date'
+            }
+        }, 1000]
+    }
+},
+            clear=False)
+class ImagesBasicTest(ImageApiTest, unittest.TestCase):
+    def test_get_images_info(self):
         url = '/images'
         method = self.client.get
         token_header = token_to_header(self.tokens['access_token'])
@@ -342,35 +365,134 @@ class ImagesTest(AuthenticatedApiTest, unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
         # then, try getting all the images
-        response = method(url, headers=token_header)
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        response_payload = json.loads(response.data)
-        self.assertEqual(len(response_payload), 3)
+        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+            response = method(url, headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            response_payload = json.loads(response.data)
+            self.assertEqual(len(response_payload), 3)
 
-        # then, try filtering by user and check for properties
-        for mock_user in self.mock_users:
-            with self.subTest(username=mock_user['username']):
-                response = method(f'{url}?username={mock_user["username"]}',
-                                  headers=token_header)
+            # then, try filtering by user and check for properties
+            for i in range(3):
+                mock_user = self.mock_users[i]
+                with self.subTest(username=mock_user['username']):
+                    response = method(
+                        f'{url}?uploader={mock_user["username"]}',
+                        headers=token_header)
+                    self.assertEqual(response.status_code, HTTPStatus.OK)
+                    response_payload = json.loads(response.data)
+                    self.assertEqual(len(response_payload), 1)
+                    for key in ('filename', 'uploader', 'upload_date', 'width',
+                                'height'):
+                        self.assertIn(key, response_payload[0])
+
+            # initial = immediate_now + timedelta(milliseconds=1)
+            # final = self.final_posted - timedelta(milliseconds=1)
+            # this is where that annoying offset comes to play
+            initial = immediate_now + utc_offset + timedelta(milliseconds=1)
+            final = self.final_posted + utc_offset - timedelta(milliseconds=1)
+
+            # then, filter by date
+            url_query = '{}?from={}&to={}'.format(url, initial.timestamp(),
+                                                  final.timestamp())
+            response = method(url_query, headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            response_payload = json.loads(response.data)
+            self.assertEqual(len(response_payload), 1)
+            self.assertEqual(response_payload[0]['uploader'],
+                             self.mock_users[1]['username'])
+
+            # finally, limit the number of results
+            url_query = f'{url}?limit=2'
+            response = method(url_query, headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            response_payload = json.loads(response.data)
+            self.assertEqual(len(response_payload), 2)
+
+    def test_post_image(self):
+        url = '/images'
+        method = self.client.post
+        token_header = token_to_header(self.tokens['access_token'])
+
+        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+
+            # first, try no file
+            response = method(url, headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+            mock_invalid = fixtures_dir / 'mock_text.txt'
+
+            # then, try no headers
+            with open(mock_invalid, 'rb') as f:
+                response = method(url, data={'file': f})
+                self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+            # then, try an invalid file
+            with open(mock_invalid, 'rb') as f:
+                response = method(url, data={'file': f}, headers=token_header)
+                self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
+
+            # then, try uploading the last three mock images
+            for file in self.images_dir.glob('mock_image_[4-6].*'):
+                with open(file, 'rb') as f, self.subTest(filename=file.name):
+                    response = method(url,
+                                      data={'file': f},
+                                      headers=token_header)
+                    self.assertEqual(response.status_code, HTTPStatus.CREATED)
+                    response_payload = json.loads(response.data)
+                    self.assertIn('filename', response_payload)
+
+        with freeze_time(self.final_posted + timedelta(milliseconds=2)):
+            # finally, make sure they were posted
+            response = self.client.get('/images', headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+            response_payload = json.loads(response.data)
+            self.assertEqual(len(response_payload), 6)
+
+    def test_get_image_data(self):
+        url = '/images/'
+        method = self.client.get
+        token_header = token_to_header(self.tokens['access_token'])
+
+        with freeze_time(self.final_posted + timedelta(
+                milliseconds=1)), tempfile.TemporaryDirectory() as tempdir:
+            response = self.client.get('/images', headers=token_header)
+            response_payload = json.loads(response.data)
+
+            for image_data in response_payload:
+                imagefile = Path(image_data['filename'])
+                response = method(f'{url}{imagefile}', headers=token_header)
                 self.assertEqual(response.status_code, HTTPStatus.OK)
-                response_payload = json.loads(response.data)
-                self.assertEqual(len(response_payload), 1)
-                for key in ('filename', 'uploader', 'upload_date', 'width',
-                            'height'):
-                    self.assertIn(response_payload[0], key)
+                self.assertTrue(response.content_type.startswith('image/'))
 
-        # finally, filter by date
-        response = method(
-            url + '?from=' +
-            (immediate_now + timedelta(milliseconds=1)).timestamp() + '&to=' +
-            (immediate_now + self.posted_delta * 2 -
-             timedelta(milliseconds=1)).timestamp(),
-            headers=token_header)
-        self.assertEqual(response.status_code, HTTPStatus.OK)
-        response_payload = json.loads(response.data)
-        self.assertEqual(len(response_payload), 1)
-        self.assertEqual(response_payload[0]['username'],
-                         self.mock_users[1]['username'])
+                with open(Path(tempdir) / imagefile, 'wb') as f:
+                    f.write(response.data)
+
+            count = 0
+            for imagefile in Path(tempdir).glob('*'):
+                count += 1
+                # this returns only one, since there sould only be one
+                local_imagefile = next(
+                    self.images_dir.glob(
+                        f'mock_image_[1-3]{imagefile.suffix}'))
+                self.assertTrue(
+                    filecmp.cmp(imagefile, local_imagefile, shallow=False))
+
+            self.assertEqual(count, 3)
+
+
+class ImageAdvancedTest(ImageApiTest, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        user = models.User.objects.get(
+            username=cls.mock_user_example['username'])
+        # assign all images to authenticated user
+        models.Image.objects.update(uploader=user.username,
+                                    uploader_id=user.id)
+
+    def test_image_delete(self):
+        pass
 
 
 if __name__ == '__main__':
