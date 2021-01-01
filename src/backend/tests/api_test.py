@@ -31,21 +31,21 @@ fixtures_dir = tests_dir / 'fixtures'
 starting_now = mongomock.utcnow()
 immediate_now = starting_now + timedelta(milliseconds=1)
 
-# this is very annoying, but when retrieving images using freezegun it needs to
-# be offset by the machines current utc diff
-# https://github.com/spulec/freezegun/issues/181#issuecomment-535663007
-utc_offset = datetime.now().astimezone().utcoffset()
-
 
 class ApiTest:
     @classmethod
     def setUpClass(cls):
-        cls.db = connect('api-test', host='mongomock://localhost')
+        db = connect('api-test', host='mongomock://localhost')
 
         # this looks weird here, but if used in tearDown it doesn't quite work
-        cls.db.drop_database('api-test')
+        db.drop_database('api-test')
 
-        cls.setup_mock_data()
+        with open(fixtures_dir / 'mock_users.json') as f:
+            cls.mock_users = json.load(f)
+            for mock_user_data in cls.mock_users:
+                models.User(**mock_user_data).save()
+            # save the last user for testing
+            cls.mock_user_example = mock_user_data
 
         cls.app = create_app(connect_to_mongo=False)
         cls.client = cls.app.test_client()
@@ -53,15 +53,6 @@ class ApiTest:
     @classmethod
     def tearDownClass(cls):
         disconnect()
-
-    @classmethod
-    def setup_mock_data(cls):
-        with open(fixtures_dir / 'mock_users.json') as f:
-            cls.mock_users = json.load(f)
-            for mock_user_data in cls.mock_users:
-                models.User(**mock_user_data).save()
-            # save the last user for testing
-            cls.mock_user_example = mock_user_data
 
 
 class AuthenticatedApiTest(ApiTest):
@@ -91,6 +82,21 @@ class ImageApiTest(AuthenticatedApiTest):
     def setUpClass(cls):
         super().setUpClass()
 
+        # mongomock doesn't support $toLong yet, so it must be patched with an
+        # alternativefor it to work
+        cls.patcher = patch.dict(
+            'backend.api.blueprints.resources.PROJECT_PIPELINE', {
+                'upload_date': {
+                    '$divide': [{
+                        '$toInt': {
+                            '$toDecimal': '$upload_date'
+                        }
+                    }, 1000]
+                }
+            },
+            clear=False)
+        cls.patcher.start()
+
         # artificially upload images (1 to 3) as uploaded by the mock users
         cls.images_dir = fixtures_dir / 'images'
         # cls.posted_delta = timedelta(seconds=1)
@@ -118,9 +124,23 @@ class ImageApiTest(AuthenticatedApiTest):
     def tearDownClass(cls):
         super().tearDownClass()
 
+        cls.patcher.stop()
+
         # remove all the uploaded images
         for file in UPLOAD_PATH.glob('*'):
             os.remove(file)
+
+
+class SpecialImageApiTest(ImageApiTest):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        user = models.User.objects.get(
+            username=cls.mock_user_example['username'])
+        # assign the first two images to authenticated user
+        for image in models.Image.objects()[:2]:
+            image.update(uploader=user.username, uploader_id=user.id)
 
 
 class AuthenticationBasicTest(ApiTest, unittest.TestCase):
@@ -298,7 +318,7 @@ class AuthenticationSecondaryTest(AuthenticatedApiTest, unittest.TestCase):
         url = '/auth/users'
         token_header = token_to_header(self.tokens['access_token'])
 
-        # first, try with no token
+        # first, try without token
         response = self.client.get(url)
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
@@ -330,7 +350,7 @@ class AuthenticationFinalTest(AuthenticatedApiTest, unittest.TestCase):
         method = self.client.delete
         token_header = token_to_header(self.tokens['access_token'])
 
-        # first, try without a token
+        # first, try without token
         response = method(url)
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
@@ -343,17 +363,6 @@ class AuthenticationFinalTest(AuthenticatedApiTest, unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
 
-# mongomock doesn't support $toLong yet, so it must be patched for it to work
-@patch.dict('backend.api.blueprints.resources.PROJECT_PIPELINE', {
-    'upload_date': {
-        '$divide': [{
-            '$toInt': {
-                '$toDecimal': '$upload_date'
-            }
-        }, 1000]
-    }
-},
-            clear=False)
 class ImagesBasicTest(ImageApiTest, unittest.TestCase):
     def test_get_images_info(self):
         url = '/images'
@@ -385,9 +394,10 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
                                 'height'):
                         self.assertIn(key, response_payload[0])
 
-            # initial = immediate_now + timedelta(milliseconds=1)
-            # final = self.final_posted - timedelta(milliseconds=1)
-            # this is where that annoying offset comes to play
+            # this is very annoying, but when retrieving images using freezegun
+            # it needs to be offset by the machines current utc diff
+            # https://github.com/spulec/freezegun/issues/181#issuecomment-535663007
+            utc_offset = datetime.now().astimezone().utcoffset()
             initial = immediate_now + utc_offset + timedelta(milliseconds=1)
             final = self.final_posted + utc_offset - timedelta(milliseconds=1)
 
@@ -415,7 +425,11 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
 
         with freeze_time(self.final_posted + timedelta(milliseconds=1)):
 
-            # first, try no file
+            # first, try without token
+            response = method(url)
+            self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+            # first, try with no file
             response = method(url, headers=token_header)
             self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
@@ -455,9 +469,20 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
 
         with freeze_time(self.final_posted + timedelta(
                 milliseconds=1)), tempfile.TemporaryDirectory() as tempdir:
+
+            # first, try without token
+            response = method(f'{url}doesnt_matter.mck')
+            self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+            # then, try an invalid filename
+            response = method(f'{url}non_existent.png', headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+            # then, get all images info
             response = self.client.get('/images', headers=token_header)
             response_payload = json.loads(response.data)
 
+            # get all image files
             for image_data in response_payload:
                 imagefile = Path(image_data['filename'])
                 response = method(f'{url}{imagefile}', headers=token_header)
@@ -467,6 +492,8 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
                 with open(Path(tempdir) / imagefile, 'wb') as f:
                     f.write(response.data)
 
+            # finally, make sure that all were received and that they are the
+            # same as the "local" files
             count = 0
             for imagefile in Path(tempdir).glob('*'):
                 count += 1
@@ -480,19 +507,55 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
             self.assertEqual(count, 3)
 
 
-class ImageAdvancedTest(ImageApiTest, unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        user = models.User.objects.get(
-            username=cls.mock_user_example['username'])
-        # assign all images to authenticated user
-        models.Image.objects.update(uploader=user.username,
-                                    uploader_id=user.id)
-
+class ImageAdvancedTest(SpecialImageApiTest, unittest.TestCase):
     def test_image_delete(self):
-        pass
+        url = '/images/'
+        method = self.client.delete
+        token_header = token_to_header(self.tokens['access_token'])
+
+        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+            # first, try without token
+            response = method(f'{url}doesnt_matter.mock')
+            self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
+
+            # then, try with an invalid file
+            response = method(f'{url}non_existent.gif', headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+            # then, try deleting the rest of the images
+            response = self.client.get('/images', headers=token_header)
+            response_payload = json.loads(response.data)
+
+            for image_data in response_payload:
+                response = method(f'{url}{image_data["filename"]}',
+                                  headers=token_header)
+                if image_data['uploader'] == self.mock_user_example[
+                        'username']:
+                    self.assertEqual(response.status_code,
+                                     HTTPStatus.NO_CONTENT)
+                else:
+                    self.assertEqual(response.status_code,
+                                     HTTPStatus.FORBIDDEN)
+
+            # finally, assert that the images were deleted
+            response = self.client.get('/images', headers=token_header)
+            response_payload = json.loads(response.data)
+            self.assertEqual(len(response_payload), 1)
+
+
+class ImageFinalTest(SpecialImageApiTest, unittest.TestCase):
+    def test_user_uploads_deleted(self):
+        url = '/auth/users'
+        method = self.client.delete
+        token_header = token_to_header(self.tokens['access_token'])
+
+        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+            response = method(url, headers=token_header)
+            self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
+
+            response = self.client.get('/images', headers=token_header)
+            response_payload = json.loads(response.data)
+            self.assertEqual(len(response_payload), 1)
 
 
 if __name__ == '__main__':

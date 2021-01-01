@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from http import HTTPStatus
 
@@ -8,7 +9,7 @@ from mongoengine.errors import DoesNotExist, NotUniqueError, ValidationError
 from werkzeug.security import check_password_hash
 
 from .. import (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION, SECRET_KEY,
-                models, utils)
+                UPLOAD_PATH, models, utils)
 
 auth_blueprint = Blueprint('auth', __name__)
 
@@ -81,7 +82,9 @@ def delete_user(**kwargs):
         user = models.User.objects.get(id=token_payload['sub'])
 
         # delete user uploads
-        models.Image.objects(uploader_id=user.id).delete()
+        for image in models.Image.objects(uploader_id=user.id):
+            os.remove(UPLOAD_PATH / f'{image.id}.{image.extension}')
+            image.delete()
 
         user.delete()
 

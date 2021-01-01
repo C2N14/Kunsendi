@@ -13,7 +13,7 @@ except KeyError:
 
 UPLOAD_PATH = (Path(__file__).parent / 'static/uploads')
 UPLOAD_PATH.mkdir(parents=True, exist_ok=True)
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif'}
 MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 
 ACCESS_TOKEN_EXPIRATION = timedelta(minutes=15)

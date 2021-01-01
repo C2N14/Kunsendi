@@ -1,9 +1,12 @@
+import os
 from datetime import date, datetime
 from http import HTTPStatus
-from flask.helpers import send_file
+from pathlib import Path
 
 import imagesize
 from flask import Blueprint, jsonify, request
+from flask.helpers import send_file, send_from_directory
+from mongoengine.errors import DoesNotExist
 
 resources_blueprint = Blueprint('resources', __name__)
 
@@ -87,26 +90,23 @@ def post_image(**kwargs):
         if not file or file.filename == '':
             raise TypeError('No selected file in request')
 
-        # tuple unpacking is quite strange here, but very useful
-        # it will try splitting by the last dot in the filename, and if it succeds
-        # 'extension' is set to a single element list with the extension, otherwise
-        # an empty list
-        _, *extension = file.filename.rsplit('.', 1)
+        file_path = Path(file.filename)
+        extension = file_path.suffix
 
         # the walrus operator is neat to reduce code duplication, but I'm
         # not sure it's the most readable
         if not extension or (extension :=
-                             extension[0].lower()) not in ALLOWED_EXTENSIONS:
+                             extension.lower()) not in ALLOWED_EXTENSIONS:
             raise TypeError('Invalid file extension')
 
         user_id = kwargs['token_payload']['sub']
         username = models.User.objects.get(id=user_id).username
-        image = models.Image(extension=extension,
+        image = models.Image(extension=extension[1:],
                              uploader=username,
                              uploader_id=user_id)
         image.save()
 
-        file_path = UPLOAD_PATH / f'{image.id}.{extension}'
+        file_path = UPLOAD_PATH / f'{image.id}{extension}'
         file.save(file_path)
 
         image.width, image.height = imagesize.get(file_path)
@@ -125,13 +125,13 @@ def post_image(**kwargs):
 @utils.token_required('access')
 def get_image(filename, **kwargs):
     try:
-        return send_file(UPLOAD_PATH / filename, as_attachment=True)
+        return send_from_directory(UPLOAD_PATH, filename, as_attachment=True)
 
     except OSError:
         return jsonify({
             'msg': 'Can\'t find specified image',
             'err': 'Filename not found'
-        }), HTTPStatus.BAD_REQUEST
+        }), HTTPStatus.NOT_FOUND
 
 
 @resources_blueprint.route('/images/<filename>', methods=['DELETE'])
@@ -140,13 +140,23 @@ def delete_image(filename, **kwargs):
     try:
         user_id = kwargs['token_payload']['sub']
 
-        # TODO: fix this
-        image = models.Image.objects.get(id=filename.split('.')[0])
+        image_path = UPLOAD_PATH / filename
 
+        if not image_path.is_file():
+            raise TypeError('Can\'t find image file for specified filename')
+
+        image = models.Image.objects.get(id=image_path.stem)
         if str(image.uploader_id) != user_id:
             raise RuntimeError('Image doesn\'t belong to user')
 
         image.delete()
+        os.remove(image_path)
+
+    except (DoesNotExist, TypeError) as e:
+        return jsonify({
+            'msg': 'Image not found',
+            'err': str(e)
+        }), HTTPStatus.NOT_FOUND
 
     except RuntimeError as e:
         return jsonify({
