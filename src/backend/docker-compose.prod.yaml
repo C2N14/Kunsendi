@@ -1,0 +1,35 @@
+version: '3'
+
+services: 
+  flask:
+    build:
+      dockerfile: Dockerfile.prod
+    command: gunicorn --bind 0.0.0.0:5000 wsgi:app
+    environment: 
+      FLASK_DEBUG: '0'
+      FLASK_ENV: production
+      FLASK_APP: /usr/src/app/app.py
+      FLASK_SECRET_KEY: /run/secrets/flask_secret_key
+      MONGO_DATABASE: apidb
+      MONGO_ROOT_USERNAME_FILE: /run/secrets/mongodb_root_user
+      MONGO_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+    expose:
+      - 5000
+    volumes: 
+      - flaskdata:/usr/src/app
+  mongodb:
+    command: mongod --auth --quiet --logpath /dev/null
+  nginx:
+    build: ./nginx
+    ports: 
+      - '80:80'
+    depends_on: 
+      - flask
+    networks: 
+      - frontend
+
+volumes:
+  dbdata:
+    driver: local
+  flaskdata:
+    driver: local

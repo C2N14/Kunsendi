@@ -19,7 +19,7 @@ class WrongCredentialsError(Exception):
     pass
 
 
-@auth_blueprint.route('/auth/users', methods=['GET'])
+@auth_blueprint.route('/api/v1/auth/users', methods=['GET'])
 @utils.token_required('access')
 def get_user_info(**kwargs):
     try:
@@ -49,7 +49,7 @@ def get_user_info(**kwargs):
     return jsonify({'user_id': user_id, 'username': username}), HTTPStatus.OK
 
 
-@auth_blueprint.route('/auth/users', methods=['POST'])
+@auth_blueprint.route('/api/v1/auth/users', methods=['POST'])
 @utils.valid_json_payload({str: ('username', 'email', 'password')})
 def register_user(**kwargs):
     try:
@@ -74,7 +74,7 @@ def register_user(**kwargs):
     return jsonify({'user_id': str(user.id)}), HTTPStatus.CREATED
 
 
-@auth_blueprint.route('/auth/users', methods=['DELETE'])
+@auth_blueprint.route('/api/v1/auth/users', methods=['DELETE'])
 @utils.token_required('access')
 def delete_user(**kwargs):
     try:
@@ -97,7 +97,7 @@ def delete_user(**kwargs):
     return '', HTTPStatus.NO_CONTENT
 
 
-@auth_blueprint.route('/auth/users/<username>', methods=['GET'])
+@auth_blueprint.route('/api/v1/auth/users/<username>', methods=['GET'])
 def get_username_available(username):
     try:
         models.User.objects.get(username=username)
@@ -109,7 +109,7 @@ def get_username_available(username):
     return jsonify({'available': available}), HTTPStatus.OK
 
 
-@auth_blueprint.route('/auth/sessions', methods=['GET'])
+@auth_blueprint.route('/api/v1/auth/sessions', methods=['GET'])
 @utils.token_required('refresh')
 def token_refresh(**kwargs):
     token_payload = kwargs['token_payload']
@@ -118,7 +118,7 @@ def token_refresh(**kwargs):
     return jsonify(tokens), HTTPStatus.OK
 
 
-@auth_blueprint.route('/auth/sessions', methods=['POST'])
+@auth_blueprint.route('/api/v1/auth/sessions', methods=['POST'])
 @utils.valid_json_payload({str: ('username', 'password')})
 def user_login(**kwargs):
     try:
@@ -169,17 +169,5 @@ def generate_tokens(user_id):
             },
             key=SECRET_KEY,
             algorithm='HS256').decode('utf-8')
-        # access_payload = {
-        #     'exp': (now + ACCESS_TOKEN_EXPIRATION).timestamp(),
-        #     'type': 'access'
-        # }
-        # refresh_payload = {
-        #     'exp': (now + REFRESH_TOKEN_EXPIRATION).timestamp(),
-        #     'type': 'refresh'
-        # }
-        # tokens['access_token'] = jwt.encode({**base_payload, **access_payload}, \
-        #                                     key=SECRET_KEY), algorithm='HS256'.decode('utf-8')
-        # tokens['refresh_token'] = jwt.encode({**base_payload, **refresh_payload}, \
-        #                                     key=SECRET_KEY, algorithm='HS256').decode('utf-8')
 
     return tokens

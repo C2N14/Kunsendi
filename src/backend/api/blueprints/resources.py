@@ -30,7 +30,7 @@ PROJECT_PIPELINE = {
 }
 
 
-@resources_blueprint.route('/images', methods=['GET'])
+@resources_blueprint.route('/api/v1/images', methods=['GET'])
 @utils.token_required('access')
 def get_image_info(**kwargs):
     try:
@@ -79,7 +79,7 @@ def get_image_info(**kwargs):
     return jsonify(list(results)), HTTPStatus.OK
 
 
-@resources_blueprint.route('/images', methods=['POST'])
+@resources_blueprint.route('/api/v1/images', methods=['POST'])
 @utils.token_required('access')
 def post_image(**kwargs):
     try:
@@ -121,7 +121,7 @@ def post_image(**kwargs):
     return jsonify({'filename': str(image.id)}), HTTPStatus.CREATED
 
 
-@resources_blueprint.route('/images/<filename>', methods=['GET'])
+@resources_blueprint.route('/api/v1/images/<filename>', methods=['GET'])
 @utils.token_required('access')
 def get_image(filename, **kwargs):
     try:
@@ -134,7 +134,7 @@ def get_image(filename, **kwargs):
         }), HTTPStatus.NOT_FOUND
 
 
-@resources_blueprint.route('/images/<filename>', methods=['DELETE'])
+@resources_blueprint.route('/api/v1/images/<filename>', methods=['DELETE'])
 @utils.token_required('access')
 def delete_image(filename, **kwargs):
     try:

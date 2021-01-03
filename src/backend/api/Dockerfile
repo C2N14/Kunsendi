@@ -2,17 +2,16 @@ FROM python:3.8-slim
 
 RUN python -m pip install --upgrade pip
 
-WORKDIR /kunsendi
+WORKDIR /usr/src/app
 
 COPY  . .
 
 RUN python -m pip install -r requirements.txt
 
-ARG DEBUG
-ARG ENV_TYPE
+ENV FLASK_DEBUG 1
+ENV FLASK_ENV development
 
-ENV FLASK_DEBUG=${DEBUG}
-ENV FLASK_ENV=${ENV_TYPE}
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# check for debug env var to install debugging tools
-RUN if [ ${DEBUG} = "1" ]; then python -m pip install debugpy; fi
+RUN python -m pip install debugpy
