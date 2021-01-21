@@ -2,18 +2,19 @@
 
 ## HTTP Methods
 
-| HTTP Method | Relative URL    | Data sent                       | Requires JWT | Result                           | Data received                                              |
-| ----------- | --------------- | ------------------------------- | :----------: | -------------------------------- | ---------------------------------------------------------- |
-| `GET`       | /auth/users     | _none_                          |     yes      | Returns information about a user | user_id, username                                          |
-| `POST`      | /auth/users     | `username`, `email`, `password` |      no      | Registers a new user             | `user_id`                                                  |
-| `DELETE`    | /auth/users     | _none_                          |     yes      | Deletes a user                   | _none_                                                     |
-| `GET`       | /auth/users/xxx | _none_                          |      no      | Checks if username is available  | `available`                                                |
-| `GET`       | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens             | `access_token`, `refresh_token`                            |
-| `POST`      | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens          | `access_token`, `refresh_token`                            |
-| `GET`       | /images         | _none_                          |     yes      | Returns information about images | [`filename`, `uploader`, `upload_date`, `width`, `height`] |
-| `POST`      | /images         | **multipart/form-data**         |     yes      | Uploads a new image              | `filename`                                                 |
-| `GET`       | /images/xxx     | _none_                          |     yes      | Returns an image file            | **image/[jpg, png, gif]**                                  |
-| `DELETE`    | /images/xxx     | _none_                          |     yes      | Deletes an image                 | _none_                                                     |
+| HTTP Method | Relative URL    | Data sent                       | Requires JWT | Result                                     | Data received                                              |
+| ----------- | --------------- | ------------------------------- | :----------: | ------------------------------------------ | ---------------------------------------------------------- |
+| `GET`       | /auth/users     | _none_                          |     yes      | Returns information about a user           | user_id, username                                          |
+| `POST`      | /auth/users     | `username`, `email`, `password` |      no      | Registers a new user                       | `user_id`                                                  |
+| `DELETE`    | /auth/users     | _none_                          |     yes      | Deletes a user                             | _none_                                                     |
+| `GET`       | /auth/users/xxx | _none_                          |      no      | Checks if username is available            | `available`                                                |
+| `GET`       | /auth/sessions  | _none_                          |     yes*     | Refreshes the tokens                       | `access_token`, `refresh_token`                            |
+| `POST`      | /auth/sessions  | `username`, `password`          |      no      | Returns both JWT tokens                    | `access_token`, `refresh_token`                            |
+| `GET`       | /images         | _none_                          |     yes      | Returns information about images           | [`filename`, `uploader`, `upload_date`, `width`, `height`] |
+| `POST`      | /images         | **multipart/form-data**         |     yes      | Uploads a new image                        | `filename`                                                 |
+| `GET`       | /images/xxx     | _none_                          |     yes      | Returns an image file                      | **image/[jpg, png, gif]**                                  |
+| `DELETE`    | /images/xxx     | _none_                          |     yes      | Deletes an image                           | _none_                                                     |
+| `GET`       | /status         | _none_                          |      no      | Returns a information about the API status | `uptime`                                                   |
 
 
 ### Notes:
@@ -23,6 +24,7 @@
 * *Access* tokens expire after 15 minutes and *refresh* tokens after 3 days.
 * When querying images, an array of objects is returned in descending order by upload date.
 * Getting and deleting images requires using the full filename, not just the id
+* The `uptime` is given in milliseconds
 
 ## Restrictions on `POST` requests
 

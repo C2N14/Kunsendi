@@ -1,11 +1,11 @@
 import os
-from datetime import date, datetime
+from datetime import datetime
 from http import HTTPStatus
 from pathlib import Path
 
 import imagesize
 from flask import Blueprint, jsonify, request
-from flask.helpers import send_file, send_from_directory
+from flask.helpers import send_from_directory
 from mongoengine.errors import DoesNotExist
 
 resources_blueprint = Blueprint('resources', __name__)

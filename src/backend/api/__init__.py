@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 try:
     with open(os.environ['FLASK_SECRET_KEY']) as f:
@@ -18,3 +18,5 @@ MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 
 ACCESS_TOKEN_EXPIRATION = timedelta(minutes=15)
 REFRESH_TOKEN_EXPIRATION = timedelta(days=3)
+
+START_TIME = datetime.utcnow()

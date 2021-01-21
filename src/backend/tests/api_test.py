@@ -22,7 +22,7 @@ if package_path not in sys.path:
     sys.path.append(package_path)
 
 from backend.api import (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION,
-                         UPLOAD_PATH, models, utils)
+                         UPLOAD_PATH, models)
 from backend.api.app import create_app
 from backend.tests import tests_dir
 from backend.tests.utils import token_to_header
@@ -62,7 +62,7 @@ class AuthenticatedApiTest(ApiTest):
     def setUpClass(cls):
         super().setUpClass()
 
-        response = cls.client.post('/auth/sessions',
+        response = cls.client.post('/api/v1/auth/sessions',
                                    json={
                                        'username':
                                        cls.mock_user_example['username'],
@@ -146,7 +146,7 @@ class SpecialImageApiTest(ImageApiTest):
 class AuthenticationBasicTest(ApiTest, unittest.TestCase):
     """Test case for URLs that don't require tokens"""
     def test_get_user_available(self):
-        url = '/auth/users/'
+        url = '/api/v1/auth/users/'
         method = self.client.get
 
         users = ('ale_tuls', 'mock.user', 'John.Doe')
@@ -160,7 +160,7 @@ class AuthenticationBasicTest(ApiTest, unittest.TestCase):
                 self.assertEqual(payload, {'available': expected_data})
 
     def test_user_register(self):
-        url = '/auth/users'
+        url = '/api/v1/auth/users'
         method = self.client.post
 
         payloads = ( \
@@ -200,7 +200,7 @@ class AuthenticationBasicTest(ApiTest, unittest.TestCase):
 
     @freeze_time(starting_now)
     def test_user_login(self):
-        url = '/auth/sessions'
+        url = '/api/v1/auth/sessions'
         method = self.client.post
 
         # test for bad payloads
@@ -251,7 +251,7 @@ class AuthenticationBasicTest(ApiTest, unittest.TestCase):
                 self.assertLess(token_payload['iat'], token_payload['exp'])
 
         # finally, ask the server for confirmation and compare to token
-        response = self.client.get('/auth/users',
+        response = self.client.get('/api/v1/auth/users',
                                    headers=token_to_header(
                                        tokens['access_token']))
         self.assertEqual(response.status_code, HTTPStatus.OK)
@@ -266,7 +266,7 @@ class AuthenticationSecondaryTest(AuthenticatedApiTest, unittest.TestCase):
     def test_tokens_and_expirations(self):
         token_types = ('access', 'refresh')
         expirations = (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION)
-        urls = ('/auth/users', '/auth/sessions')
+        urls = ('/api/v1/auth/users', '/api/v1/auth/sessions')
 
         for token_type, expiration, url in zip(token_types, expirations, urls):
             # first, no token at all
@@ -299,7 +299,7 @@ class AuthenticationSecondaryTest(AuthenticatedApiTest, unittest.TestCase):
     @freeze_time(immediate_now + ACCESS_TOKEN_EXPIRATION + timedelta(seconds=1)
                  )
     def test_refresh_token(self):
-        url = '/auth/sessions'
+        url = '/api/v1/auth/sessions'
         method = self.client.get
 
         response = method(url,
@@ -308,14 +308,14 @@ class AuthenticationSecondaryTest(AuthenticatedApiTest, unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
         new_tokens = json.loads(response.data)
-        response = self.client.get('/auth/users',
+        response = self.client.get('/api/v1/auth/users',
                                    headers=token_to_header(
                                        new_tokens['access_token']))
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
     @freeze_time(immediate_now)
     def test_get_user_info(self):
-        url = '/auth/users'
+        url = '/api/v1/auth/users'
         token_header = token_to_header(self.tokens['access_token'])
 
         # first, try without token
@@ -346,7 +346,7 @@ class AuthenticationSecondaryTest(AuthenticatedApiTest, unittest.TestCase):
 class AuthenticationFinalTest(AuthenticatedApiTest, unittest.TestCase):
     @freeze_time(immediate_now)
     def test_user_delete(self):
-        url = '/auth/users'
+        url = '/api/v1/auth/users'
         method = self.client.delete
         token_header = token_to_header(self.tokens['access_token'])
 
@@ -359,13 +359,13 @@ class AuthenticationFinalTest(AuthenticatedApiTest, unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
 
         # finally, make sure the user is gone
-        response = self.client.get('/auth/users', headers=token_header)
+        response = self.client.get('/api/v1/auth/users', headers=token_header)
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
 
 class ImagesBasicTest(ImageApiTest, unittest.TestCase):
     def test_get_images_info(self):
-        url = '/images'
+        url = '/api/v1/images'
         method = self.client.get
         token_header = token_to_header(self.tokens['access_token'])
 
@@ -419,7 +419,7 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
             self.assertEqual(len(response_payload), 2)
 
     def test_post_image(self):
-        url = '/images'
+        url = '/api/v1/images'
         method = self.client.post
         token_header = token_to_header(self.tokens['access_token'])
 
@@ -457,13 +457,13 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
 
         with freeze_time(self.final_posted + timedelta(milliseconds=2)):
             # finally, make sure they were posted
-            response = self.client.get('/images', headers=token_header)
+            response = self.client.get(url, headers=token_header)
             self.assertEqual(response.status_code, HTTPStatus.OK)
             response_payload = json.loads(response.data)
             self.assertEqual(len(response_payload), 6)
 
     def test_get_image_data(self):
-        url = '/images/'
+        url = '/api/v1/images/'
         method = self.client.get
         token_header = token_to_header(self.tokens['access_token'])
 
@@ -479,7 +479,7 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
             self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
             # then, get all images info
-            response = self.client.get('/images', headers=token_header)
+            response = self.client.get('/api/v1/images', headers=token_header)
             response_payload = json.loads(response.data)
 
             # get all image files
@@ -509,7 +509,7 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
 
 class ImageAdvancedTest(SpecialImageApiTest, unittest.TestCase):
     def test_image_delete(self):
-        url = '/images/'
+        url = '/api/v1/images/'
         method = self.client.delete
         token_header = token_to_header(self.tokens['access_token'])
 
@@ -523,7 +523,7 @@ class ImageAdvancedTest(SpecialImageApiTest, unittest.TestCase):
             self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
             # then, try deleting the rest of the images
-            response = self.client.get('/images', headers=token_header)
+            response = self.client.get('/api/v1/images', headers=token_header)
             response_payload = json.loads(response.data)
 
             for image_data in response_payload:
@@ -538,14 +538,14 @@ class ImageAdvancedTest(SpecialImageApiTest, unittest.TestCase):
                                      HTTPStatus.FORBIDDEN)
 
             # finally, assert that the images were deleted
-            response = self.client.get('/images', headers=token_header)
+            response = self.client.get('/api/v1/images', headers=token_header)
             response_payload = json.loads(response.data)
             self.assertEqual(len(response_payload), 1)
 
 
 class ImageFinalTest(SpecialImageApiTest, unittest.TestCase):
     def test_user_uploads_deleted(self):
-        url = '/auth/users'
+        url = '/api/v1/auth/users'
         method = self.client.delete
         token_header = token_to_header(self.tokens['access_token'])
 
@@ -553,7 +553,7 @@ class ImageFinalTest(SpecialImageApiTest, unittest.TestCase):
             response = method(url, headers=token_header)
             self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
 
-            response = self.client.get('/images', headers=token_header)
+            response = self.client.get('/api/v1/images', headers=token_header)
             response_payload = json.loads(response.data)
             self.assertEqual(len(response_payload), 1)
 

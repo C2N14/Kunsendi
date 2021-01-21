@@ -1,5 +1,5 @@
 from flask import Flask
-from .blueprints import auth, resources
+from .blueprints import auth, resources, info
 import os
 import mongoengine as db
 from http import HTTPStatus
@@ -34,6 +34,7 @@ def create_app(connect_to_mongo=True) -> Flask:
 
         app.register_blueprint(auth.auth_blueprint)
         app.register_blueprint(resources.resources_blueprint)
+        app.register_blueprint(info.info_blueprint)
 
         return app
 
