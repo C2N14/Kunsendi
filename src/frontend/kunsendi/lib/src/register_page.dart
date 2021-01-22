@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'app_styles.dart';
+import 'package:kunsendi/src/widgets/home_logo.dart';
+
+import 'widgets/home_button.dart';
+import 'widgets/home_text_field.dart';
+import 'widgets/home_loading.dart';
 
 class RegisterPage extends StatefulWidget {
   static String tag = 'login-page';
@@ -10,111 +14,50 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
-    Widget _logo() {
-      return MiscWidgets.homePageLogo;
-    }
-
-    Widget _usernameField() {
-      return TextFormField(
-        keyboardType: TextInputType.text,
-        autofocus: false,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: MiscStyling.homeFieldColor,
-          hintText: 'Username',
-          hintStyle: Theme.of(context).textTheme.homeHintTextStyle,
-          contentPadding: MiscStyling.homeFieldPadding,
-          border:
-              OutlineInputBorder(borderRadius: MiscStyling.homeWidgetRadius),
-        ),
-      );
-    }
-
-    Widget _emailField() {
-      return TextFormField(
-        keyboardType: TextInputType.emailAddress,
-        autofocus: false,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: MiscStyling.homeFieldColor,
-          hintText: 'Email',
-          hintStyle: Theme.of(context).textTheme.homeHintTextStyle,
-          contentPadding: MiscStyling.homeFieldPadding,
-          border:
-              OutlineInputBorder(borderRadius: MiscStyling.homeWidgetRadius),
-        ),
-      );
-    }
-
-    Widget _passwordField() {
-      return TextFormField(
-        keyboardType: TextInputType.emailAddress,
-        autofocus: false,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: MiscStyling.homeFieldColor,
-          hintText: 'Password',
-          hintStyle: Theme.of(context).textTheme.homeHintTextStyle,
-          contentPadding: MiscStyling.homeFieldPadding,
-          border:
-              OutlineInputBorder(borderRadius: MiscStyling.homeWidgetRadius),
-        ),
-      );
-    }
-
-    Widget _confirmPasswordField() {
-      return TextFormField(
-        keyboardType: TextInputType.emailAddress,
-        autofocus: false,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: MiscStyling.homeFieldColor,
-          hintText: 'Confirm password',
-          hintStyle: Theme.of(context).textTheme.homeHintTextStyle,
-          contentPadding: MiscStyling.homeFieldPadding,
-          border:
-              OutlineInputBorder(borderRadius: MiscStyling.homeWidgetRadius),
-        ),
-      );
-    }
-
-    Widget _registerButton() {
-      return RaisedButton(
-        shape: RoundedRectangleBorder(
-          borderRadius: MiscStyling.homeWidgetRadius,
-        ),
-        onPressed: () {
-          // TODO: do something;
-        },
-        padding: MiscStyling.homeButtonPadding,
-        color: MiscStyling.homeButtonColor,
-        child: Text('REGISTER',
-            style: Theme.of(context).textTheme.homeButtonTextStyle),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: MiscStyling.homePageColor,
-      body: Center(
-        child: ListView(
-          shrinkWrap: true,
-          physics: BouncingScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(28.0, 50.0, 28.0, 50.0),
-          children: <Widget>[
-            _logo(),
-            SizedBox(height: 64.0),
-            _usernameField(),
-            SizedBox(height: 18.0),
-            _emailField(),
-            SizedBox(height: 18.0),
-            _passwordField(),
-            SizedBox(height: 18.0),
-            _confirmPasswordField(),
-            SizedBox(height: 56.0),
-            _registerButton(),
-          ],
-        ),
-      ),
-    );
+        backgroundColor: Colors.deepPurple[800],
+        body: Stack(children: <Widget>[
+          Center(
+            child: ListView(
+              shrinkWrap: true,
+              physics: BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(28.0, 40.0, 28.0, 40.0),
+              children: <Widget>[
+                HomeLogo(),
+                SizedBox(height: 64.0),
+                HomeTextField(
+                  hintText: 'Username',
+                  inputType: TextInputType.text,
+                ),
+                SizedBox(height: 18.0),
+                HomeTextField(
+                  hintText: 'Email',
+                  inputType: TextInputType.emailAddress,
+                ),
+                SizedBox(height: 18.0),
+                HomeTextField(
+                  hintText: 'Password',
+                  inputType: TextInputType.visiblePassword,
+                  obscure: true,
+                ),
+                SizedBox(height: 18.0),
+                HomeTextField(
+                  hintText: 'Confirm password',
+                  inputType: TextInputType.visiblePassword,
+                  obscure: true,
+                ),
+                SizedBox(height: 56.0),
+                HomeButton(
+                  heroTag: 'register_button',
+                  onPressedFunction: () {
+                    // TODO: do something
+                  },
+                  text: 'REGISTER',
+                ),
+              ],
+            ),
+          ),
+          HomeLoadingOverlay(),
+        ]));
   }
 }

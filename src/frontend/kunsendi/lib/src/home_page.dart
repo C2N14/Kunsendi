@@ -1,7 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'app_styles.dart';
 import 'login_page.dart';
 import 'register_page.dart';
+import 'package:http/http.dart' as http;
+
+import 'widgets/home_logo.dart';
+import 'widgets/home_button.dart';
+import 'widgets/home_text_field.dart';
+import 'widgets/home_loading.dart';
 
 class HomePage extends StatefulWidget {
   static String tag = 'login-page';
@@ -12,76 +20,50 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
-    Widget _logo() {
-      return MiscWidgets.homePageLogo;
-    }
-
-    Widget _hostnameField() {
-      return TextFormField(
-        keyboardType: TextInputType.url,
-        autofocus: false,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: MiscStyling.homeFieldColor,
-          hintText: 'Server Hostname',
-          hintStyle: Theme.of(context).textTheme.homeHintTextStyle,
-          contentPadding: MiscStyling.homeFieldPadding,
-          border:
-              OutlineInputBorder(borderRadius: MiscStyling.homeWidgetRadius),
-        ),
-      );
-    }
-
-    Widget _loginButton() {
-      return RaisedButton(
-        shape: RoundedRectangleBorder(
-          borderRadius: MiscStyling.homeWidgetRadius,
-        ),
-        onPressed: () {
-          Navigator.push(
-              context, MaterialPageRoute(builder: (context) => LoginPage()));
-        },
-        padding: MiscStyling.homeButtonPadding,
-        color: MiscStyling.homeButtonColor,
-        child: Text('LOG IN',
-            style: Theme.of(context).textTheme.homeButtonTextStyle),
-      );
-    }
-
-    Widget _registerButton() {
-      return RaisedButton(
-        shape: RoundedRectangleBorder(
-          borderRadius: MiscStyling.homeWidgetRadius,
-        ),
-        onPressed: () {
-          Navigator.push(
-              context, MaterialPageRoute(builder: (context) => RegisterPage()));
-        },
-        padding: MiscStyling.homeButtonPadding,
-        color: MiscStyling.homeButtonColor,
-        child: Text('REGISTER',
-            style: Theme.of(context).textTheme.homeButtonTextStyle),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: MiscStyling.homePageColor,
-      body: Center(
-        child: ListView(
-          shrinkWrap: true,
-          physics: BouncingScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(28.0, 50.0, 28.0, 50.0),
-          children: <Widget>[
-            _logo(),
-            SizedBox(height: 64.0),
-            _hostnameField(),
-            SizedBox(height: 56.0),
-            _loginButton(),
-            SizedBox(height: 20.0),
-            _registerButton(),
-          ],
-        ),
-      ),
-    );
+        backgroundColor: Colors.deepPurple[800],
+        body: Stack(children: <Widget>[
+          Center(
+            child: ListView(
+              shrinkWrap: true,
+              physics: BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(28.0, 40.0, 28.0, 40.0),
+              children: <Widget>[
+                HomeLogo(),
+                SizedBox(height: 64.0),
+                HomeTextField(
+                  hintText: 'Server hostname',
+                  inputType: TextInputType.url,
+                ),
+                SizedBox(height: 56.0),
+                HomeButton(
+                  heroTag: 'login_button',
+                  onPressedFunction: () {
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (context) => LoginPage()));
+                  },
+                  text: 'LOG IN',
+                ),
+                SizedBox(height: 20.0),
+                HomeButton(
+                  heroTag: 'register_button',
+                  onPressedFunction: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => RegisterPage()));
+                  },
+                  text: 'REGISTER',
+                ),
+              ],
+            ),
+          ),
+          HomeLoadingOverlay()
+        ]));
+  }
+
+  Future<bool> _validHostname(String hostname) async {
+    final response = await http.get(hostname);
+    return response.statusCode == HttpStatus.ok;
   }
 }
