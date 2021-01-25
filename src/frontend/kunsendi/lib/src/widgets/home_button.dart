@@ -11,9 +11,7 @@ class HomeButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24.0),
           ),
-          onPressed: () {
-            this.onPressedFunction();
-          },
+          onPressed: this.onPressed,
           padding: EdgeInsets.all(20.0),
           color: Colors.deepPurpleAccent,
           child: Text(this.text,
@@ -22,9 +20,9 @@ class HomeButton extends StatelessWidget {
   }
 
   @override
-  const HomeButton({Key key, this.text, this.heroTag, this.onPressedFunction})
+  const HomeButton({Key key, this.text, this.heroTag, this.onPressed})
       : super(key: key);
   final String text;
   final String heroTag;
-  final Function onPressedFunction;
+  final Function onPressed;
 }
