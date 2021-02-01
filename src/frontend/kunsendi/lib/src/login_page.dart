@@ -1,4 +1,3 @@
-// import 'globals.dart' as globals;
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +11,7 @@ import 'images_feed.dart';
 import 'widgets/home_button.dart';
 import 'widgets/home_loading.dart';
 import 'widgets/home_text_field.dart';
+import 'widgets/app_alert_dialog.dart';
 
 class LoginPage extends StatefulWidget {
   static String tag = 'login-page';
@@ -25,6 +25,70 @@ class _LoginPageState extends State<LoginPage> {
 
   String _username;
   String _password;
+
+  final _usernameController = TextEditingController();
+  void _loadSavedUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString('username');
+    setState(() {
+      _usernameController.text = savedUsername;
+      this._username = savedUsername ?? '';
+    });
+  }
+
+  Widget _usernameField() {
+    return HomeTextField(
+      hintText: 'Username',
+      keyboardType: TextInputType.text,
+      controller: this._usernameController,
+      validator: (String value) {
+        if (value.isEmpty) {
+          return 'Please enter a username';
+        }
+      },
+      onChanged: (String value) {
+        setState(() {
+          this._username = value;
+        });
+      },
+    );
+  }
+
+  Widget _passwordField() {
+    return HomeTextField(
+      hintText: 'Password',
+      keyboardType: TextInputType.visiblePassword,
+      obscureText: true,
+      validator: (String value) {
+        if (value.isEmpty) {
+          return 'Please enter a password';
+        }
+      },
+      onChanged: (String value) {
+        setState(() {
+          this._password = value;
+        });
+      },
+    );
+  }
+
+  Widget _loginButton() {
+    return HomeButton(
+        heroTag: 'login_button',
+        text: 'LOG IN',
+        onPressed: () {
+          if (_formKey.currentState.validate()) {
+            _logIn(context: context, pageBuilder: (context) => ImagesFeed());
+          }
+        });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadSavedUsername();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,48 +105,11 @@ class _LoginPageState extends State<LoginPage> {
                 children: <Widget>[
                   HomeLogo(),
                   SizedBox(height: 64.0),
-                  HomeTextField(
-                    hintText: 'Username',
-                    keyboardType: TextInputType.text,
-                    validator: (String value) {
-                      if (value.isEmpty) {
-                        return 'Please enter a username';
-                      }
-                    },
-                    onChanged: (String value) {
-                      setState(() {
-                        this._username = value;
-                      });
-                    },
-                  ),
+                  _usernameField(),
                   SizedBox(height: 18.0),
-                  HomeTextField(
-                    hintText: 'Password',
-                    keyboardType: TextInputType.visiblePassword,
-                    obscureText: true,
-                    validator: (String value) {
-                      if (value.isEmpty) {
-                        return 'Please enter a password';
-                      }
-                    },
-                    onChanged: (String value) {
-                      setState(() {
-                        this._password = value;
-                      });
-                    },
-                  ),
+                  _passwordField(),
                   SizedBox(height: 56.0),
-                  HomeButton(
-                    heroTag: 'login_button',
-                    text: 'LOG IN',
-                    onPressed: () {
-                      if (_formKey.currentState.validate()) {
-                        _logIn(
-                            context: context,
-                            pageBuilder: (context) => ImagesFeed());
-                      }
-                    },
-                  ),
+                  _loginButton(),
                 ],
               ),
             ),
@@ -94,6 +121,13 @@ class _LoginPageState extends State<LoginPage> {
         ]));
   }
 
+  @override
+  void dispose() {
+    this._usernameController.dispose();
+
+    super.dispose();
+  }
+
   Future<void> _logIn({BuildContext context, Function pageBuilder}) async {
     // Display the loading circle indicator.
     setState(() {
@@ -103,12 +137,16 @@ class _LoginPageState extends State<LoginPage> {
     final prefs = await SharedPreferences.getInstance();
     final apiUri = prefs.getString('selected_api_uri');
 
+    print(this._username);
+
     final response = await http.post('$apiUri/v1/auth/sessions',
         body: json.encode({
           'username': this._username,
           'password': this._password,
         }),
         headers: {'Content-type': 'application/json'});
+
+    print(response.body);
 
     bool loggedIn = false, requestError = false;
     Map<String, dynamic> payload;
@@ -122,6 +160,8 @@ class _LoginPageState extends State<LoginPage> {
       } on FormatException catch (_) {
         requestError = true;
       }
+    } else {
+      requestError = true;
     }
 
     // Hide the loading circle indicator.
@@ -132,25 +172,19 @@ class _LoginPageState extends State<LoginPage> {
     if (!loggedIn) {
       showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-                  title: Text(
-                    requestError
-                        ? 'There was an error with the server request.'
-                        : 'Couldn\'t verify credentials.\nVerify your input and try again.',
-                  ),
-                  actions: <Widget>[
-                    FlatButton(
-                        child: Text('OK'),
-                        onPressed: () {
-                          Navigator.of(context, rootNavigator: true).pop();
-                        })
-                  ]));
+          builder: (context) => AppAlertDialog(
+                text: requestError
+                    ? 'There was an error with the server request.'
+                    : 'Couldn\'t verify credentials.\nVerify your input and try again.',
+              ));
     } else {
       // Securely save the returned tokens.
       final secureStorage = FlutterSecureStorage();
       for (var token in <String>['access_token', 'refresh_token']) {
         await secureStorage.write(key: token, value: payload[token]);
       }
+      prefs.setString('logged_username', this._username);
+      // secureStorage.write(key: 'username', value: this._username);
 
       Navigator.push(context, MaterialPageRoute(builder: pageBuilder));
     }

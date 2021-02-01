@@ -11,8 +11,10 @@ class HomeTextField extends StatelessWidget {
         enableSuggestions: false,
         keyboardType: this.keyboardType,
         obscureText: this.obscureText,
+        initialValue: this.initialValue,
         validator: this.validator ?? (value) => null,
         onChanged: this.onChanged ?? (value) => null,
+        controller: this.controller,
         decoration: InputDecoration(
           hintText: this.hintText,
           filled: true,
@@ -31,12 +33,16 @@ class HomeTextField extends StatelessWidget {
       this.keyboardType = TextInputType.text,
       this.hintText,
       this.obscureText = false,
+      this.initialValue,
       this.validator,
-      this.onChanged})
+      this.onChanged,
+      this.controller})
       : super(key: key);
   final TextInputType keyboardType;
   final String hintText;
   final bool obscureText;
+  final String initialValue;
   final Function validator;
   final Function onChanged;
+  final TextEditingController controller;
 }

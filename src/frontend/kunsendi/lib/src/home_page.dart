@@ -1,17 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:kunsendi/src/widgets/app_alert_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'login_page.dart';
 import 'register_page.dart';
-import 'package:http/http.dart' as http;
-
-import 'widgets/home_logo.dart';
 import 'widgets/home_button.dart';
-import 'widgets/home_text_field.dart';
 import 'widgets/home_loading.dart';
-// import 'globals.dart' as globals;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'widgets/home_logo.dart';
+import 'widgets/home_text_field.dart';
 
 class HomePage extends StatefulWidget {
   static String tag = 'login-page';
@@ -24,6 +24,88 @@ class _HomePageState extends State<HomePage> {
   bool _loading = false;
 
   Uri _serverApiUri;
+
+  final _hostnameController = TextEditingController();
+  void _loadSavedHostname() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Strips the trailing /api path from the saved uri
+    final savedHostname =
+        prefs.getString('selected_api_uri')?.replaceAll(RegExp(r'\/api$'), '');
+    setState(() {
+      _hostnameController.text = savedHostname;
+    });
+  }
+
+  Widget _hostnameField() {
+    return HomeTextField(
+      hintText: 'Server hostname',
+      keyboardType: TextInputType.url,
+      controller: _hostnameController,
+      validator: (String value) {
+        if (value.isEmpty) {
+          return 'Please enter a hostname';
+        }
+
+        // Strip trailing slash (is there really no better way to do this with dart?).
+        final hostname = (value[value.length - 1] == '/')
+            ? value.substring(0, value.length - 1)
+            : value;
+
+        // This is used to figure out if the hostname has a scheme specified.
+        final splitUri = hostname.split('://');
+
+        Uri parsedUri;
+        try {
+          // TODO: change this to https by default?
+          parsedUri = (splitUri.length == 2)
+              ? Uri(scheme: splitUri[0], host: splitUri[1], path: '/api')
+              : Uri(scheme: 'http', host: hostname, path: '/api');
+        } on FormatException catch (_) {
+          return 'Invalid hostname format';
+        }
+
+        // Maybe this souldn't happen here, but I can't seem to find
+        // another effective way to achieve this.
+        setState(() {
+          this._serverApiUri = parsedUri;
+        });
+      },
+    );
+  }
+
+  Widget _loginButton() {
+    return HomeButton(
+      heroTag: 'login_button',
+      text: 'LOG IN',
+      onPressed: () {
+        if (_formKey.currentState.validate()) {
+          _formKey.currentState.save();
+          _validateApiUri(
+              context: context, pageBuilder: (context) => LoginPage());
+        }
+      },
+    );
+  }
+
+  Widget _registerButton() {
+    return HomeButton(
+      heroTag: 'register_button',
+      text: 'REGISTER',
+      onPressed: () {
+        if (_formKey.currentState.validate()) {
+          _validateApiUri(
+              context: context, pageBuilder: (context) => RegisterPage());
+        }
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadSavedHostname();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,66 +122,11 @@ class _HomePageState extends State<HomePage> {
                 children: <Widget>[
                   HomeLogo(),
                   SizedBox(height: 64.0),
-                  HomeTextField(
-                    hintText: 'Server hostname',
-                    keyboardType: TextInputType.url,
-                    validator: (String value) {
-                      if (value.isEmpty) {
-                        return 'Please enter a hostname';
-                      }
-
-                      // Strip trailing slash (is there really no better way to do this with dart?).
-                      final hostname = (value[value.length - 1] == '/')
-                          ? value.substring(0, value.length - 1)
-                          : value;
-
-                      // This is used to figure out if the hostname has a scheme specified.
-                      final splitUri = hostname.split('://');
-
-                      Uri parsedUri;
-                      try {
-                        // TODO: change this to https by default?
-                        parsedUri = (splitUri.length == 2)
-                            ? Uri(
-                                scheme: splitUri[0],
-                                host: splitUri[1],
-                                path: '/api')
-                            : Uri(scheme: 'http', host: hostname, path: '/api');
-                      } on FormatException catch (_) {
-                        return 'Invalid hostname format';
-                      }
-
-                      // Maybe this souldn't happen here, but I can't seem to find
-                      // another effective way to achieve this.
-                      setState(() {
-                        this._serverApiUri = parsedUri;
-                      });
-                    },
-                  ),
+                  _hostnameField(),
                   SizedBox(height: 56.0),
-                  HomeButton(
-                    heroTag: 'login_button',
-                    text: 'LOG IN',
-                    onPressed: () {
-                      if (_formKey.currentState.validate()) {
-                        _validateApiUri(
-                            context: context,
-                            pageBuilder: (context) => LoginPage());
-                      }
-                    },
-                  ),
+                  _loginButton(),
                   SizedBox(height: 20.0),
-                  HomeButton(
-                    heroTag: 'register_button',
-                    text: 'REGISTER',
-                    onPressed: () {
-                      if (_formKey.currentState.validate()) {
-                        _validateApiUri(
-                            context: context,
-                            pageBuilder: (context) => RegisterPage());
-                      }
-                    },
-                  ),
+                  _registerButton(),
                 ],
               ),
             ),
@@ -109,6 +136,13 @@ class _HomePageState extends State<HomePage> {
             child: HomeLoadingOverlay(),
           )
         ]));
+  }
+
+  @override
+  void dispose() {
+    this._hostnameController.dispose();
+
+    super.dispose();
   }
 
   Future<bool> _validApiResponse(Uri serverApiUri) async {
@@ -149,17 +183,9 @@ class _HomePageState extends State<HomePage> {
     if (!validApi) {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            'Couldn\'t validate hostname.\nVerify your input or try with a different one.',
-          ),
-          actions: <Widget>[
-            FlatButton(
-                child: Text('OK'),
-                onPressed: () {
-                  Navigator.of(context, rootNavigator: true).pop();
-                }),
-          ],
+        builder: (context) => AppAlertDialog(
+          text:
+              'Couldn\'t validate hostname.\nVerify your input or try with a different one.',
         ),
       );
     } else {
