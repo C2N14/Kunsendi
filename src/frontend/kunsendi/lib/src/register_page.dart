@@ -45,8 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
       final checkedUsername = _usernameController.value.text;
       final apiUri =
           (await SharedPreferences.getInstance()).getString('selected_api_uri');
-      final response = await http
-          .get('$apiUri/v1/auth/users/${_usernameController.value.text}');
+      final response = await http.get('$apiUri/v1/auth/users/$checkedUsername');
       final payload = json.decode(response.body);
 
       // Cancel if value changed in the meantime.
