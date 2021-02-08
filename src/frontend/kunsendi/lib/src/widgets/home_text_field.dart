@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../app_styles.dart';
+import '../globals.dart';
 
 class HomeTextField extends StatelessWidget {
   @override

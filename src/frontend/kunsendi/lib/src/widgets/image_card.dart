@@ -19,12 +19,12 @@ class _ImageCardState extends State<ImageCard> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Image.network(widget.imageData.url),
+          Image.network(widget.imageData.filename), // TODO: fix this
           ListTile(
-            title: Text(widget.imageData.author),
+            title: Text(widget.imageData.uploader),
             subtitle: Text(
               DateFormat('yyyy-MM-dd — kk:mm')
-                  .format(widget.imageData.published)
+                  .format(widget.imageData.uploadDate)
                   .toString(),
               // style: TextStyle(color: Colors.black.withOpacity(0.6)),
             ),

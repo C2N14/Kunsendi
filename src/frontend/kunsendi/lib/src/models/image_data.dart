@@ -1,7 +1,18 @@
 class ImageData {
-  const ImageData({this.author, this.authorId, this.url, this.published});
-  final String author;
-  final String authorId;
-  final String url;
-  final DateTime published;
+  const ImageData(
+      {this.filename, this.uploader, this.uploadDate, this.width, this.height});
+  factory ImageData.fromJson(Map<String, dynamic> json) => ImageData(
+        filename: json['filename'],
+        uploader: json['uploader'],
+        uploadDate: DateTime.fromMillisecondsSinceEpoch(json['upload_date'],
+            isUtc: true),
+        width: json['width'],
+        height: json['height'],
+      );
+
+  final String filename;
+  final String uploader;
+  final DateTime uploadDate;
+  final int width;
+  final int height;
 }

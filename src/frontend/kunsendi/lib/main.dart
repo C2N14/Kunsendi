@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+
 // import 'package:kunsendi/src/images_feed.dart';
+import 'src/globals.dart';
+import 'src/pages/home_page.dart';
 
-import 'src/home_page.dart';
-
-void main() => runApp(MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await App.init();
+  runApp(MyApp());
+}
 
 class MyApp extends StatelessWidget {
   @override
