@@ -19,6 +19,7 @@ dependencies:
   flutter_secure_storage: ^3.3.5
   shared_preferences: ^0.5.12+4
   jwt_decoder: ^1.0.4
+  retry: ^3.0.1
 
 
 dev_dependencies:

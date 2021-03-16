@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:kunsendi/src/utils.dart';
 
 import '../globals.dart';
 import '../widgets/app_alert_dialog.dart';
@@ -167,7 +168,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void initState() {
     super.initState();
 
-    this._apiUri = App.localStorage.getString('selected_api_uri');
+    this._apiUri = AppGlobals.localStorage.getString('selected_api_uri');
   }
 
   @override
@@ -220,13 +221,10 @@ class _RegisterPageState extends State<RegisterPage> {
       this._loading = true;
     });
 
-    final response = await http.post('${this._apiUri}/v1/auth/users',
-        body: json.encode({
-          'username': this._username,
-          'email': this._email,
-          'password': this._password,
-        }),
-        headers: {'Content-type': 'application/json'});
+    final api = ApiClient.getInstance();
+
+    final response =
+        await api.register(this._username, this._email, this._password);
 
     final registered = response.statusCode == HttpStatus.created;
 
@@ -244,7 +242,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ));
     } else {
       // final prefs = await SharedPreferences.getInstance();
-      App.localStorage.setString('username', this._username);
+      AppGlobals.localStorage.setString('username', this._username);
 
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: pageBuilder));

@@ -11,6 +11,7 @@ import '../widgets/home_loading.dart';
 import '../widgets/home_logo.dart';
 import '../widgets/home_text_field.dart';
 import 'images_feed.dart';
+import '../utils.dart';
 
 class LoginPage extends StatefulWidget {
   static String tag = 'login-page';
@@ -28,7 +29,7 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   void _loadSavedUsername() async {
     // final prefs = await SharedPreferences.getInstance();
-    final savedUsername = App.localStorage.getString('username');
+    final savedUsername = AppGlobals.localStorage.getString('username');
     setState(() {
       _usernameController.text = savedUsername;
       this._username = savedUsername ?? '';
@@ -135,58 +136,29 @@ class _LoginPageState extends State<LoginPage> {
       this._loading = true;
     });
 
-    // final prefs = await SharedPreferences.getInstance();
-    // final apiUri = ;
-
-    print(this._username);
-
-    final response = await http.post(
-        '${App.localStorage.getString('selected_api_uri')}/v1/auth/sessions',
-        body: json.encode({
-          'username': this._username,
-          'password': this._password,
-        }),
-        headers: {'Content-type': 'application/json'});
-
-    print(response.body);
-
-    bool loggedIn = false, requestError = false;
-    Map<String, dynamic> payload;
-
-    if (response.statusCode == HttpStatus.created) {
-      try {
-        payload = json.decode(response.body);
-
-        loggedIn = payload.containsKey('access_token') &&
-            payload.containsKey('refresh_token');
-      } on FormatException catch (_) {
-        requestError = true;
-      }
-    } else {
-      requestError = true;
-    }
+    final api = ApiClient.getInstance();
+    final response = await api.login(this._username, this._password);
 
     // Hide the loading circle indicator.
     setState(() {
       this._loading = false;
     });
 
-    if (!loggedIn) {
+    if (response.statusCode != HttpStatus.created) {
       showDialog(
           context: context,
           builder: (context) => AppAlertDialog(
-                text: requestError
+                text: response.statusCode == HttpStatus.internalServerError
                     ? 'There was an error with the server request.'
                     : 'Couldn\'t verify credentials.\nVerify your input and try again.',
               ));
     } else {
       // Securely save the returned tokens.
-      // final secureStorage = FlutterSecureStorage();
-      for (var token in const <String>['access_token', 'refresh_token']) {
-        await App.secureStorage.write(key: token, value: payload[token]);
-      }
-      // final prefs = await SharedPreferences.getInstance();
-      App.localStorage.setString('logged_username', this._username);
+      await AppGlobals.secureStorage
+          .write(key: 'access_token', value: response.payload['access_token']);
+      await AppGlobals.secureStorage.write(
+          key: 'refresh_token', value: response.payload['refresh_token']);
+      AppGlobals.localStorage.setString('logged_username', this._username);
       // secureStorage.write(key: 'username', value: this._username);
 
       Navigator.push(context, MaterialPageRoute(builder: pageBuilder));

@@ -9,7 +9,7 @@ extension AppTextStyles on TextTheme {
   TextStyle get homeHintTextStyle => TextStyle(color: Colors.grey[600]);
 }
 
-class App {
+class AppGlobals {
   static SharedPreferences localStorage;
   static FlutterSecureStorage secureStorage;
 

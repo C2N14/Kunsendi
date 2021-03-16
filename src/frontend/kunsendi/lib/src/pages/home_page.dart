@@ -29,7 +29,7 @@ class _HomePageState extends State<HomePage> {
   void _loadSavedHostname() async {
     // final prefs = await SharedPreferences.getInstance();
     // Strips the trailing /api path from the saved uri
-    final savedHostname = App.localStorage
+    final savedHostname = AppGlobals.localStorage
         .getString('selected_api_uri')
         ?.replaceAll(RegExp(r'\/api$'), '');
     setState(() {
@@ -191,7 +191,7 @@ class _HomePageState extends State<HomePage> {
       );
     } else {
       // final prefs = await SharedPreferences.getInstance();
-      App.localStorage
+      AppGlobals.localStorage
           .setString('selected_api_uri', this._serverApiUri.toString());
 
       Navigator.push(
