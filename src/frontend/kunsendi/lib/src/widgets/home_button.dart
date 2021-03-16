@@ -20,9 +20,10 @@ class HomeButton extends StatelessWidget {
   }
 
   @override
-  const HomeButton({Key key, this.text, this.heroTag, this.onPressed})
+  const HomeButton(
+      {Key? key, this.text = '', required this.heroTag, this.onPressed})
       : super(key: key);
   final String text;
   final String heroTag;
-  final Function onPressed;
+  final void Function()? onPressed;
 }

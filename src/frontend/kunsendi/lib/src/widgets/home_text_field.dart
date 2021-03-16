@@ -12,8 +12,8 @@ class HomeTextField extends StatelessWidget {
         keyboardType: this.keyboardType,
         obscureText: this.obscureText,
         initialValue: this.initialValue,
-        validator: this.validator ?? (value) => null,
-        onChanged: this.onChanged ?? (value) => null,
+        validator: this.validator,
+        onChanged: this.onChanged,
         controller: this.controller,
         decoration: InputDecoration(
           hintText: this.hintText,
@@ -29,7 +29,7 @@ class HomeTextField extends StatelessWidget {
 
   @override
   HomeTextField(
-      {Key key,
+      {Key? key,
       this.keyboardType = TextInputType.text,
       this.hintText,
       this.obscureText = false,
@@ -39,10 +39,10 @@ class HomeTextField extends StatelessWidget {
       this.controller})
       : super(key: key);
   final TextInputType keyboardType;
-  final String hintText;
+  final String? hintText;
   final bool obscureText;
-  final String initialValue;
-  final Function validator;
-  final Function onChanged;
-  final TextEditingController controller;
+  final String? initialValue;
+  final String? Function(String?)? validator;
+  final String? Function(String?)? onChanged;
+  final TextEditingController? controller;
 }

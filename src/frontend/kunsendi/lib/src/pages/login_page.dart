@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import '../globals.dart';
 import '../widgets/app_alert_dialog.dart';
@@ -23,15 +21,15 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
 
-  String _username;
-  String _password;
+  String? _username;
+  String? _password;
 
   final _usernameController = TextEditingController();
   void _loadSavedUsername() async {
     // final prefs = await SharedPreferences.getInstance();
-    final savedUsername = AppGlobals.localStorage.getString('username');
+    final savedUsername = AppGlobals.localStorage?.getString('username');
     setState(() {
-      _usernameController.text = savedUsername;
+      _usernameController.text = savedUsername ?? '';
       this._username = savedUsername ?? '';
     });
   }
@@ -41,12 +39,12 @@ class _LoginPageState extends State<LoginPage> {
       hintText: 'Username',
       keyboardType: TextInputType.text,
       controller: this._usernameController,
-      validator: (String value) {
-        if (value.isEmpty) {
+      validator: (String? value) {
+        if (value?.isEmpty ?? true) {
           return 'Please enter a username';
         }
       },
-      onChanged: (String value) {
+      onChanged: (String? value) {
         setState(() {
           this._username = value;
         });
@@ -59,12 +57,12 @@ class _LoginPageState extends State<LoginPage> {
       hintText: 'Password',
       keyboardType: TextInputType.visiblePassword,
       obscureText: true,
-      validator: (String value) {
-        if (value.isEmpty) {
+      validator: (String? value) {
+        if (value?.isEmpty ?? true) {
           return 'Please enter a password';
         }
       },
-      onChanged: (String value) {
+      onChanged: (String? value) {
         setState(() {
           this._password = value;
         });
@@ -77,8 +75,8 @@ class _LoginPageState extends State<LoginPage> {
         heroTag: 'login_button',
         text: 'LOG IN',
         onPressed: () {
-          if (this._formKey.currentState.validate()) {
-            this._formKey.currentState.save();
+          if (this._formKey.currentState?.validate() ?? false) {
+            this._formKey.currentState?.save();
             _logIn(context: context, pageBuilder: (context) => ImagesFeed());
             // _logIn(context: context, closure: (context) => ImagesFeed());
           }
@@ -130,14 +128,17 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _logIn({BuildContext context, Function pageBuilder}) async {
+  Future<void> _logIn(
+      {required BuildContext context,
+      required Widget Function(BuildContext) pageBuilder}) async {
     // Display the loading circle indicator.
     setState(() {
       this._loading = true;
     });
 
     final api = ApiClient.getInstance();
-    final response = await api.login(this._username, this._password);
+    final response =
+        await api.login(this._username ?? '', this._password ?? '');
 
     // Hide the loading circle indicator.
     setState(() {
@@ -155,10 +156,11 @@ class _LoginPageState extends State<LoginPage> {
     } else {
       // Securely save the returned tokens.
       await AppGlobals.secureStorage
-          .write(key: 'access_token', value: response.payload['access_token']);
-      await AppGlobals.secureStorage.write(
+          ?.write(key: 'access_token', value: response.payload['access_token']);
+      await AppGlobals.secureStorage?.write(
           key: 'refresh_token', value: response.payload['refresh_token']);
-      AppGlobals.localStorage.setString('logged_username', this._username);
+      AppGlobals.localStorage
+          ?.setString('logged_username', this._username ?? '');
       // secureStorage.write(key: 'username', value: this._username);
 
       Navigator.push(context, MaterialPageRoute(builder: pageBuilder));

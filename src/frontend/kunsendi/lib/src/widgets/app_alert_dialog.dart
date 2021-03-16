@@ -13,6 +13,6 @@ class AppAlertDialog extends StatelessWidget {
   }
 
   @override
-  const AppAlertDialog({Key key, this.text}) : super(key: key);
+  const AppAlertDialog({Key? key, required this.text}) : super(key: key);
   final String text;
 }

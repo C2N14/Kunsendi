@@ -10,10 +10,10 @@ extension AppTextStyles on TextTheme {
 }
 
 class AppGlobals {
-  static SharedPreferences localStorage;
-  static FlutterSecureStorage secureStorage;
+  static SharedPreferences? localStorage;
+  static FlutterSecureStorage? secureStorage;
 
-  static Future init() async {
+  static Future<void> init() async {
     localStorage = await SharedPreferences.getInstance();
     secureStorage = FlutterSecureStorage();
   }

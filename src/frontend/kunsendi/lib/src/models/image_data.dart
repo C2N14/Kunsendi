@@ -1,6 +1,10 @@
 class ImageData {
   const ImageData(
-      {this.filename, this.uploader, this.uploadDate, this.width, this.height});
+      {required this.filename,
+      required this.uploader,
+      required this.uploadDate,
+      required this.width,
+      required this.height});
   factory ImageData.fromJson(Map<String, dynamic> json) => ImageData(
         filename: json['filename'],
         uploader: json['uploader'],

@@ -23,17 +23,17 @@ class _HomePageState extends State<HomePage> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
 
-  Uri _serverApiUri;
+  Uri? _serverApiUri;
 
   final _hostnameController = TextEditingController();
   void _loadSavedHostname() async {
     // final prefs = await SharedPreferences.getInstance();
     // Strips the trailing /api path from the saved uri
     final savedHostname = AppGlobals.localStorage
-        .getString('selected_api_uri')
+        ?.getString('selected_api_uri')
         ?.replaceAll(RegExp(r'\/api$'), '');
     setState(() {
-      _hostnameController.text = savedHostname;
+      _hostnameController.text = savedHostname ?? '';
     });
   }
 
@@ -42,24 +42,24 @@ class _HomePageState extends State<HomePage> {
       hintText: 'Server hostname',
       keyboardType: TextInputType.url,
       controller: _hostnameController,
-      validator: (String value) {
-        if (value.isEmpty) {
+      validator: (String? value) {
+        if (value?.isEmpty ?? true) {
           return 'Please enter a hostname';
         }
 
         // Strip trailing slash (is there really no better way to do this with dart?).
-        final hostname = (value[value.length - 1] == '/')
-            ? value.substring(0, value.length - 1)
+        final hostname = (value?[value.length - 1] == '/')
+            ? value?.substring(0, value.length - 1)
             : value;
 
         // This is used to figure out if the hostname has a scheme specified.
-        final splitUri = hostname.split('://');
+        final splitUri = hostname?.split('://');
 
         Uri parsedUri;
         try {
           // TODO: change this to https by default?
-          parsedUri = (splitUri.length == 2)
-              ? Uri(scheme: splitUri[0], host: splitUri[1], path: '/api')
+          parsedUri = (splitUri?.length == 2)
+              ? Uri(scheme: splitUri?[0], host: splitUri?[1], path: '/api')
               : Uri(scheme: 'http', host: hostname, path: '/api');
         } on FormatException catch (_) {
           return 'Invalid hostname format';
@@ -79,8 +79,8 @@ class _HomePageState extends State<HomePage> {
       heroTag: 'login_button',
       text: 'LOG IN',
       onPressed: () {
-        if (this._formKey.currentState.validate()) {
-          this._formKey.currentState.save();
+        if (this._formKey.currentState?.validate() ?? false) {
+          this._formKey.currentState?.save();
           this._validateApiUri(
               context: context, pageBuilder: (context) => LoginPage());
         }
@@ -93,8 +93,8 @@ class _HomePageState extends State<HomePage> {
         heroTag: 'register_button',
         text: 'REGISTER',
         onPressed: () {
-          if (this._formKey.currentState.validate()) {
-            this._formKey.currentState.save();
+          if (this._formKey.currentState?.validate() ?? false) {
+            this._formKey.currentState?.save();
             this._validateApiUri(
                 context: context, pageBuilder: (context) => RegisterPage());
           }
@@ -146,10 +146,11 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<bool> _validApiResponse(Uri serverApiUri) async {
+  Future<bool> _validApiResponse(Uri? serverApiUri) async {
     http.Response response;
     try {
-      response = await http.get('$serverApiUri/v1/status');
+      serverApiUri?.replace(path: '/v1/status');
+      response = await http.get(serverApiUri ?? Uri());
     } on FormatException catch (_) {
       return false;
     } on SocketException catch (_) {
@@ -168,7 +169,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _validateApiUri(
-      {BuildContext context, Function pageBuilder}) async {
+      {required BuildContext context,
+      required Widget Function(BuildContext) pageBuilder}) async {
     // Display the loading circle indicator.
     setState(() {
       this._loading = true;
@@ -190,9 +192,10 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     } else {
+      // Widget Function(Widget) hello;
       // final prefs = await SharedPreferences.getInstance();
       AppGlobals.localStorage
-          .setString('selected_api_uri', this._serverApiUri.toString());
+          ?.setString('selected_api_uri', this._serverApiUri.toString());
 
       Navigator.push(
         context,

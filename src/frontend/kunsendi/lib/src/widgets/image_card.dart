@@ -5,7 +5,7 @@ import '../models/image_data.dart';
 
 class ImageCard extends StatefulWidget {
   @override
-  const ImageCard({Key key, this.imageData}) : super(key: key);
+  const ImageCard({Key? key, required this.imageData}) : super(key: key);
   final ImageData imageData;
 
   @override

@@ -19,40 +19,39 @@ class RegisterPage extends StatefulWidget {
   @override
   _RegisterPageState createState() => new _RegisterPageState();
 
-  @override
-  RegisterPage({Key key, this.apiUri}) : super(key: key);
-  final String apiUri;
+  // @override
+  // RegisterPage({Key key, this.apiUri}) : super(key: key);
+  // final String apiUri;
 }
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
-  String _apiUri;
+  // String? _apiUri;
 
   // Same regexes as server.
   final _usernameRegexp = RegExp(r'^(?=.*[\w].*)([\w._-]*)$');
   final _emailRegexp = RegExp(r'^[^@]*@[^@]*$');
 
-  String _username;
-  String _email;
-  String _password;
+  String? _username;
+  String? _email;
+  String? _password;
 
   final _usernameController = TextEditingController();
-  String _checkedUsername;
-  bool _usernameIsAvailable;
-  Timer _usernameDebounce;
+  String? _checkedUsername;
+  bool? _usernameIsAvailable;
+  Timer? _usernameDebounce;
 
   // Checks if there is a username collision with the server.
   void _checkUsernameCollision() async {
     // Debounce to reduce server load.
     if (this._usernameDebounce?.isActive ?? false) {
-      this._usernameDebounce.cancel();
+      this._usernameDebounce?.cancel();
     }
     this._usernameDebounce = Timer(Duration(milliseconds: 750), () async {
       final checkedUsername = _usernameController.value.text;
       final response =
-          await http.get('${this._apiUri}/v1/auth/users/$checkedUsername');
-      final payload = json.decode(response.body);
+          await ApiClient.getInstance().getUsernameAvailable(checkedUsername);
 
       // Cancel if value changed in the meantime.
       if (checkedUsername != _usernameController.value.text) {
@@ -61,7 +60,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
       setState(() {
         this._checkedUsername = checkedUsername;
-        this._usernameIsAvailable = payload['available'];
+        this._usernameIsAvailable = response.payload['available'];
       });
     });
   }
@@ -71,10 +70,10 @@ class _RegisterPageState extends State<RegisterPage> {
       hintText: 'Username',
       keyboardType: TextInputType.text,
       controller: _usernameController,
-      validator: (String value) {
-        if (value.isEmpty) {
+      validator: (String? value) {
+        if (value?.isEmpty ?? true) {
           return 'Please enter a username';
-        } else if (value.length < 4 || value.length > 16) {
+        } else if (value!.length < 4 || value.length > 16) {
           return 'Invalid username length';
         } else if (!_usernameRegexp.hasMatch(value)) {
           return 'Invalid username';
@@ -82,9 +81,9 @@ class _RegisterPageState extends State<RegisterPage> {
           _checkUsernameCollision();
           return 'Validating username...';
         }
-        return _usernameIsAvailable ? null : 'Username already taken';
+        return (_usernameIsAvailable ?? true) ? null : 'Username already taken';
       },
-      onChanged: (String value) {
+      onChanged: (String? value) {
         setState(() {
           this._username = value;
         });
@@ -96,19 +95,16 @@ class _RegisterPageState extends State<RegisterPage> {
     return HomeTextField(
         hintText: 'Email',
         keyboardType: TextInputType.emailAddress,
-        validator: (String value) {
-          if (value.isEmpty) {
+        validator: (String? value) {
+          if (value?.isEmpty ?? true) {
             return 'Please enter an email';
-          } else if (value.length > 255) {
+          } else if (value!.length > 255) {
             return 'Invalid email length';
           } else if (!_emailRegexp.hasMatch(value)) {
             return 'Invalid email format';
           }
-          // else {
-          //   // final prefs = await
-          // }
         },
-        onChanged: (String value) {
+        onChanged: (String? value) {
           setState(() {
             this._email = value;
           });
@@ -120,14 +116,14 @@ class _RegisterPageState extends State<RegisterPage> {
       hintText: 'Password',
       keyboardType: TextInputType.visiblePassword,
       obscureText: true,
-      validator: (String value) {
-        if (value.isEmpty) {
+      validator: (String? value) {
+        if (value?.isEmpty ?? true) {
           return 'Please enter a password';
-        } else if (value.length < 8 || value.length > 128) {
+        } else if (value!.length < 8 || value.length > 128) {
           return 'Invalid password length';
         }
       },
-      onChanged: (String value) {
+      onChanged: (String? value) {
         setState(() {
           this._password = value;
         });
@@ -140,8 +136,8 @@ class _RegisterPageState extends State<RegisterPage> {
       hintText: 'Confirm password',
       keyboardType: TextInputType.visiblePassword,
       obscureText: true,
-      validator: (String value) {
-        if (value.isEmpty) {
+      validator: (String? value) {
+        if (value?.isEmpty ?? true) {
           return 'Please confirm your password';
         } else if (value != this._password) {
           return 'Passwords do not match';
@@ -155,20 +151,13 @@ class _RegisterPageState extends State<RegisterPage> {
       heroTag: 'register_button',
       text: 'REGISTER',
       onPressed: () {
-        if (this._formKey.currentState.validate()) {
-          this._formKey.currentState.save();
+        if (this._formKey.currentState?.validate() ?? false) {
+          this._formKey.currentState?.save();
           this._register(
               context: context, pageBuilder: (context) => LoginPage());
         }
       },
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    this._apiUri = AppGlobals.localStorage.getString('selected_api_uri');
   }
 
   @override
@@ -212,10 +201,12 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
 
     this._usernameController.dispose();
-    this._usernameDebounce.cancel();
+    this._usernameDebounce?.cancel();
   }
 
-  Future<void> _register({BuildContext context, Function pageBuilder}) async {
+  Future<void> _register(
+      {required BuildContext context,
+      required Widget Function(BuildContext) pageBuilder}) async {
     // Display the loading circle indicator.
     setState(() {
       this._loading = true;
@@ -242,7 +233,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ));
     } else {
       // final prefs = await SharedPreferences.getInstance();
-      AppGlobals.localStorage.setString('username', this._username);
+      AppGlobals.localStorage?.setString('username', this._username ?? '');
 
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: pageBuilder));
