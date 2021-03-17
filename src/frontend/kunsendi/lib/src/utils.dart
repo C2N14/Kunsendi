@@ -21,6 +21,11 @@ class ApiResponse {
   }
 }
 
+class ApiAuthException implements Exception {
+  String cause;
+  ApiAuthException(this.cause);
+}
+
 // This is a singleton class for accesing the API.
 class ApiClient {
   static ApiClient? _instance;
@@ -31,27 +36,49 @@ class ApiClient {
 
   // Base function for generic HTTP request.
   Future<http.Response> _httpRequest(Function requestFun, String path,
-      [Map<String, String>? headers, dynamic body]) async {
-    return await retry(
-            requestFun(
-                '${AppGlobals.localStorage?.get('selected_api_uri')}$path',
-                headers: headers,
-                body: body),
-            retryIf: (e) => e is SocketException || e is TimeoutException,
+      [bool? authRequired = false,
+      Map<String, String>? headers,
+      dynamic body]) async {
+    return await retry(() async {
+      final response = await requestFun(
+          '${AppGlobals.localStorage?.get('selected_api_uri')}$path',
+          // If authentication is required, tries with the access token if not specified in the headers.
+          headers: authRequired!
+              ? {
+                  ...(headers ?? {}),
+                  'Authorization':
+                      'Bearer ${await AppGlobals.secureStorage?.read(key: 'access_token')}'
+                }
+              : headers,
+          body: body);
+      if (authRequired && (response.status == HttpStatus.unauthorized) ||
+          response.status == HttpStatus.gone) {
+        throw ApiAuthException(response.status == HttpStatus.gone
+            ? 'Expired token'
+            : 'Bad authentication');
+      }
+      return response;
+    },
+            retryIf: (e) =>
+                e is SocketException ||
+                e is TimeoutException ||
+                e is ApiAuthException,
             maxAttempts: 5)
         .timeout(Duration(seconds: 10));
   }
 
   // Specific HTTP requests.
   Future<http.Response> _get(String path,
-          {Map<String, String>? headers}) async =>
-      this._httpRequest(http.get, path, headers);
+          {bool? authRequired, Map<String, String>? headers}) async =>
+      this._httpRequest(http.get, path, authRequired, headers);
   Future<http.Response> _post(String path,
-          {Map<String, String>? headers, dynamic body}) async =>
-      this._httpRequest(http.post, path, headers, body);
+          {bool? authRequired,
+          Map<String, String>? headers,
+          dynamic body}) async =>
+      this._httpRequest(http.post, path, authRequired, headers, body);
   Future<http.Response> _delete(String path,
-          {Map<String, String>? headers}) async =>
-      this._httpRequest(http.delete, path, headers);
+          {bool? authRequired, Map<String, String>? headers}) async =>
+      this._httpRequest(http.delete, path, authRequired, headers);
 
   // Tries using the stored information to refresh the access and refresh tokens.
   Future<bool> refreshedSession() async {
@@ -98,61 +125,57 @@ class ApiClient {
   }
 
   Future<ApiResponse> getUserInfo({String? id, String? username}) async {
-    // String params = '';
-    // if (id != null) {
-    //   params += 'id=$id';
-    // }
-    // if (params.isNotEmpty) {
-    //   params += '&';
-    // }
-    // if (username != null) {
-    //   params += 'username=$username';
-    // }
-    // return ApiResponse.fromHttpResponse(await this._get('/v1/auth/users$params'));
-
-    final pathWithParams = Uri(
-        path: '/v1/auth/users',
-        queryParameters: {'id': id, 'username': username});
-
-    return ApiResponse.fromHttpResponse(await this._get(pathWithParams.query));
+    final params = Uri(queryParameters: {
+      if (id != null) 'id': id,
+      if (username != null) 'username': username,
+    });
+    return ApiResponse.fromHttpResponse(await this._get(
+      '/v1/auth/users&${params.query}',
+    ));
   }
 
   Future<ApiResponse> register(
       String? username, String? email, String? password) async {
     return ApiResponse.fromHttpResponse(
-      await this._post('/v1/auth/users',
-          body: json.encode({
-            'username': username ?? '',
-            'email': email ?? '',
-            'password': password ?? '',
-          }),
-          headers: {'Content-type': 'application/json'}),
+      await this._post(
+        '/v1/auth/users',
+        body: json.encode({
+          'username': username!,
+          'email': email!,
+          'password': password!,
+        }),
+        headers: {'Content-type': 'application/json'},
+      ),
     );
   }
 
   Future<ApiResponse> unregister() async {
-    final accessToken =
-        await AppGlobals.secureStorage?.read(key: 'access_token');
     return ApiResponse.fromHttpResponse(
-      await this._delete('/v1/auth/users',
-          headers: {'Authorization': 'Bearer $accessToken'}),
+      await this._delete(
+        '/v1/auth/users',
+        authRequired: true,
+      ),
     );
   }
 
   Future<ApiResponse> getUsernameAvailable(String? username) async {
     return ApiResponse.fromHttpResponse(
-      await this._get('/v1/auth/users/${username ?? ''}'),
+      await this._get(
+        '/v1/auth/users/${username ?? ''}',
+      ),
     );
   }
 
   Future<ApiResponse> login(String? username, String? password) async {
     return ApiResponse.fromHttpResponse(
-      await this._post('/v1/auth/sessions',
-          body: json.encode({
-            'username': username ?? '',
-            'password': password ?? '',
-          }),
-          headers: {'Content-type': 'application/json'}),
+      await this._post(
+        '/v1/auth/sessions',
+        body: json.encode({
+          'username': username!,
+          'password': password!,
+        }),
+        headers: {'Content-type': 'application/json'},
+      ),
     );
   }
 
@@ -162,16 +185,24 @@ class ApiClient {
       DateTime? from,
       DateTime? to,
       int? limit}) async {
-    final fromInSeconds =
-        from != null ? from.millisecondsSinceEpoch / 1000 : null;
-    final toInSeconds = to != null ? to.millisecondsSinceEpoch / 1000 : null;
-    final pathWithParams = Uri(path: '/images', queryParameters: {
-      'uploader': uploader,
-      'uploader_id': uploaderId,
-      'from': fromInSeconds,
-      'to': toInSeconds,
-      'limit': limit
+    final params = Uri(queryParameters: {
+      if (uploader != null) 'uploader': uploader,
+      if (uploaderId != null) 'uploader_id': uploaderId,
+      if (from != null) 'from': from.millisecondsSinceEpoch / 1000,
+      if (to != null) 'to': to.millisecondsSinceEpoch / 1000,
+      if (limit != null) 'limit': limit,
     });
-    return ApiResponse.fromHttpResponse(await this._get(pathWithParams.query));
+    return ApiResponse.fromHttpResponse(await this._get(
+      '/v1/images&${params.query}',
+      authRequired: true,
+    ));
+  }
+
+  Future<ApiResponse> postImage(File? imageFile) async {
+    return ApiResponse.fromHttpResponse(await this._post(
+      '/v1/images',
+      body: imageFile?.readAsBytesSync(),
+      authRequired: true,
+    ));
   }
 }

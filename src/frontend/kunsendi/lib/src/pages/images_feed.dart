@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/image_data.dart';
 import '../widgets/image_card.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 import '../globals.dart';
 
 class ImagesFeed extends StatefulWidget {
