@@ -7,16 +7,28 @@ class HomeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Hero(
         tag: this.heroTag,
-        child: RaisedButton(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24.0),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24.0),
+            ),
+            padding: EdgeInsets.all(20.0),
+            primary: Colors.deepPurpleAccent,
           ),
           onPressed: this.onPressed,
-          padding: EdgeInsets.all(20.0),
-          color: Colors.deepPurpleAccent,
           child: Text(this.text,
               style: Theme.of(context).textTheme.homeButtonTextStyle),
         ));
+    // child: RaisedButton(
+    //   shape: RoundedRectangleBorder(
+    //     borderRadius: BorderRadius.circular(24.0),
+    //   ),
+    //   onPressed: this.onPressed,
+    //   padding: EdgeInsets.all(20.0),
+    //   color: Colors.deepPurpleAccent,
+    //   child: Text(this.text,
+    //       style: Theme.of(context).textTheme.homeButtonTextStyle),
+    // ));
   }
 
   @override

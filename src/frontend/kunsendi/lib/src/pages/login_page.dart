@@ -27,7 +27,7 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   void _loadSavedUsername() async {
     // final prefs = await SharedPreferences.getInstance();
-    final savedUsername = AppGlobals.localStorage?.getString('username');
+    final savedUsername = AppGlobals.localStorage!.getString('username');
     setState(() {
       _usernameController.text = savedUsername ?? '';
       this._username = savedUsername ?? '';
@@ -136,9 +136,8 @@ class _LoginPageState extends State<LoginPage> {
       this._loading = true;
     });
 
-    final api = ApiClient.getInstance();
-    final response =
-        await api.login(this._username ?? '', this._password ?? '');
+    final response = await ApiClient.getInstance()
+        .login(this._username ?? '', this._password ?? '');
 
     // Hide the loading circle indicator.
     setState(() {
@@ -155,13 +154,12 @@ class _LoginPageState extends State<LoginPage> {
               ));
     } else {
       // Securely save the returned tokens.
-      await AppGlobals.secureStorage
-          ?.write(key: 'access_token', value: response.payload['access_token']);
-      await AppGlobals.secureStorage?.write(
+      await AppGlobals.secureStorage!
+          .write(key: 'access_token', value: response.payload['access_token']);
+      await AppGlobals.secureStorage!.write(
           key: 'refresh_token', value: response.payload['refresh_token']);
-      AppGlobals.localStorage
-          ?.setString('logged_username', this._username ?? '');
-      // secureStorage.write(key: 'username', value: this._username);
+      AppGlobals.localStorage!
+          .setString('logged_username', this._username ?? '');
 
       Navigator.push(context, MaterialPageRoute(builder: pageBuilder));
     }

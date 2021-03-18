@@ -17,7 +17,7 @@ class _ImagesFeedState extends State<ImagesFeed> {
   void initState() {
     super.initState();
 
-    this._loggedUsername = AppGlobals.localStorage?.getString('username');
+    this._loggedUsername = AppGlobals.localStorage!.getString('username');
   }
 
   @override

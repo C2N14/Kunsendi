@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:kunsendi/src/widgets/app_alert_dialog.dart';
 
 import '../globals.dart';
+import '../utils.dart';
+import '../widgets/app_alert_dialog.dart';
 import '../widgets/home_button.dart';
 import '../widgets/home_loading.dart';
 import '../widgets/home_logo.dart';
@@ -27,10 +26,9 @@ class _HomePageState extends State<HomePage> {
 
   final _hostnameController = TextEditingController();
   void _loadSavedHostname() async {
-    // final prefs = await SharedPreferences.getInstance();
     // Strips the trailing /api path from the saved uri
-    final savedHostname = AppGlobals.localStorage
-        ?.getString('selected_api_uri')
+    final savedHostname = AppGlobals.localStorage!
+        .getString('selected_api_uri')
         ?.replaceAll(RegExp(r'\/api$'), '');
     setState(() {
       _hostnameController.text = savedHostname ?? '';
@@ -57,10 +55,9 @@ class _HomePageState extends State<HomePage> {
 
         Uri parsedUri;
         try {
-          // TODO: change this to https by default?
           parsedUri = (splitUri?.length == 2)
               ? Uri(scheme: splitUri?[0], host: splitUri?[1], path: '/api')
-              : Uri(scheme: 'http', host: hostname, path: '/api');
+              : Uri(scheme: 'https', host: hostname, path: '/api');
         } on FormatException catch (_) {
           return 'Invalid hostname format';
         }
@@ -146,28 +143,6 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<bool> _validApiResponse(Uri? serverApiUri) async {
-    http.Response response;
-    try {
-      serverApiUri?.replace(path: '/v1/status');
-      response = await http.get(serverApiUri ?? Uri());
-    } on FormatException catch (_) {
-      return false;
-    } on SocketException catch (_) {
-      return false;
-    }
-
-    Map<String, dynamic> payload;
-    try {
-      payload = jsonDecode(response.body);
-    } on FormatException catch (_) {
-      return false;
-    }
-
-    return response.statusCode == HttpStatus.ok &&
-        payload.containsKey('uptime');
-  }
-
   Future<void> _validateApiUri(
       {required BuildContext context,
       required Widget Function(BuildContext) pageBuilder}) async {
@@ -176,7 +151,13 @@ class _HomePageState extends State<HomePage> {
       this._loading = true;
     });
 
-    final validApi = await _validApiResponse(this._serverApiUri);
+    // Save to local storage to be validated in API Client.
+    AppGlobals.localStorage!
+        .setString('selected_api_uri', this._serverApiUri.toString());
+
+    final response = await ApiClient.getInstance().status();
+    final validApi = response.statusCode == HttpStatus.ok &&
+        response.payload.containsKey('uptime');
 
     // Hide the loading circle indicator.
     setState(() {
@@ -192,16 +173,10 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     } else {
-      // Widget Function(Widget) hello;
-      // final prefs = await SharedPreferences.getInstance();
-      AppGlobals.localStorage
-          ?.setString('selected_api_uri', this._serverApiUri.toString());
-
       Navigator.push(
         context,
         MaterialPageRoute(builder: pageBuilder),
       );
-      // closure(this._serverApiUri.toString());
     }
   }
 }

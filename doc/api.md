@@ -53,6 +53,7 @@ If neither `uploader` nor `uploader_id` are specified, images from all users are
 
 ## Status codes & error responses
 If the request was successful, the response code will be according to the method of the request:
+
 | Method   | Success code |
 | -------- | ------------ |
 | `GET`    | `OK`         |

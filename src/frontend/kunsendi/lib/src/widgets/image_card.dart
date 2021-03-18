@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../models/image_data.dart';
 
+import '../globals.dart';
+
 class ImageCard extends StatefulWidget {
   @override
   const ImageCard({Key? key, required this.imageData}) : super(key: key);
@@ -19,7 +21,8 @@ class _ImageCardState extends State<ImageCard> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Image.network(widget.imageData.filename), // TODO: fix this
+          Image.network(
+              '${AppGlobals.localStorage!.getString('selected_api_uri')}/v1/images/${widget.imageData.filename}'), // TODO: fix this
           ListTile(
             title: Text(widget.imageData.uploader),
             subtitle: Text(

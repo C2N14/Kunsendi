@@ -4,7 +4,7 @@ class AppAlertDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(title: Text(this.text), actions: <Widget>[
-      FlatButton(
+      TextButton(
           child: Text('OK'),
           onPressed: () {
             Navigator.of(context, rootNavigator: true).pop();

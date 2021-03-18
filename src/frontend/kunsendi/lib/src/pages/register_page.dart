@@ -16,16 +16,11 @@ class RegisterPage extends StatefulWidget {
   static String tag = 'login-page';
   @override
   _RegisterPageState createState() => new _RegisterPageState();
-
-  // @override
-  // RegisterPage({Key key, this.apiUri}) : super(key: key);
-  // final String apiUri;
 }
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
-  // String? _apiUri;
 
   // Same regexes as server.
   final _usernameRegexp = RegExp(r'^(?=.*[\w].*)([\w._-]*)$');
@@ -43,9 +38,7 @@ class _RegisterPageState extends State<RegisterPage> {
   // Checks if there is a username collision with the server.
   void _checkUsernameCollision() async {
     // Debounce to reduce server load.
-    if (this._usernameDebounce?.isActive ?? false) {
-      this._usernameDebounce?.cancel();
-    }
+    this._usernameDebounce?.cancel();
     this._usernameDebounce = Timer(Duration(milliseconds: 750), () async {
       final checkedUsername = _usernameController.value.text;
       final response =
@@ -210,11 +203,8 @@ class _RegisterPageState extends State<RegisterPage> {
       this._loading = true;
     });
 
-    final api = ApiClient.getInstance();
-
-    final response =
-        await api.register(this._username, this._email, this._password);
-
+    final response = await ApiClient.getInstance()
+        .register(this._username!, this._email!, this._password!);
     final registered = response.statusCode == HttpStatus.created;
 
     // Hide the loading circle indicator.
@@ -230,8 +220,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     'There was an error with the request.\nVerify your input and try again.',
               ));
     } else {
-      // final prefs = await SharedPreferences.getInstance();
-      AppGlobals.localStorage?.setString('username', this._username ?? '');
+      AppGlobals.localStorage!.setString('username', this._username ?? '');
 
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: pageBuilder));
