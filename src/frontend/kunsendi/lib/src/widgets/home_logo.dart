@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class HomeLogo extends StatelessWidget {
+  static const assetName = 'assets/logo.png';
+
   @override
   Widget build(BuildContext context) {
     return Hero(
@@ -8,7 +10,7 @@ class HomeLogo extends StatelessWidget {
       child: CircleAvatar(
         backgroundColor: Colors.transparent,
         radius: 80.0,
-        child: Image.asset('assets/logo.png'),
+        child: Image.asset(assetName),
       ),
     );
   }

@@ -1,30 +1,35 @@
-import 'globals.dart';
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
 import 'package:retry/retry.dart';
 
+import 'globals.dart';
+
+// Class for simplifying API responses.
 class ApiResponse {
   final int statusCode;
-  final Map<String, dynamic> payload;
+  final dynamic payload;
   const ApiResponse(this.statusCode, this.payload);
 
   factory ApiResponse.fromHttpResponse(http.Response response) {
+    print(response.headers);
     return ApiResponse(
         response.statusCode,
-        response.headers['Content-type'] == 'application/json'
+        response.headers['content-type'] == 'application/json'
             ? json.decode(response.body)
             : response.body);
   }
 }
 
+// Exception for authentication related issues.
 class ApiAuthException implements Exception {
   String cause;
   ApiAuthException(this.cause);
 }
 
-// This is a singleton class for accesing the API.
+// Singleton class for accessing the API.
 class ApiClient {
   static ApiClient? _instance;
   ApiClient._();
@@ -34,24 +39,26 @@ class ApiClient {
 
   // Base function for generic HTTP request.
   Future<http.Response> _httpRequest(Function requestFun, String path,
-      [bool? authRequired = false,
-      Map<String, String>? headers,
-      dynamic body]) async {
+      [bool? authRequired, Map<String, String>? headers, dynamic body]) async {
     return await retry(() async {
-      final response = await requestFun(
-          '${AppGlobals.localStorage!.get('selected_api_uri')}$path',
-          // If authentication is required, tries with the access token if not specified in the headers.
-          headers: authRequired!
-              ? {
-                  ...(headers ?? {}),
-                  'Authorization':
-                      'Bearer ${await AppGlobals.secureStorage!.read(key: 'access_token')}'
-                }
-              : headers,
-          body: body);
-      if (authRequired) {
+      // If authentication is required, try with the access token if not specified in the headers.
+      if (authRequired ?? false) {
+        headers ??= Map<String, String>();
+        headers!['Authorization'] =
+            'Bearer ${await AppGlobals.secureStorage!.read(key: 'access_token')}';
+      }
+
+      final target =
+          Uri.parse('${AppGlobals.localStorage!.get('selected_api_uri')}$path');
+
+      // Only try passing the body as argument if necessary
+      final response = (body != null)
+          ? await requestFun(target, headers: headers, body: body)
+          : await requestFun(target, headers: headers);
+
+      if (authRequired ?? false) {
         if (response.statusCode == HttpStatus.gone &&
-            !await this.initSession(multipleTries: true)) {
+            !await this.initSession()) {
           throw ApiAuthException('Expired refresh token');
         } else if (response.statusCode == HttpStatus.unauthorized) {
           throw ApiAuthException('Invalid authorization');
@@ -65,14 +72,17 @@ class ApiClient {
   }
 
   // Specific HTTP requests.
+  // GET request.
   Future<http.Response> _get(String path,
           {bool? authRequired, Map<String, String>? headers}) async =>
       this._httpRequest(http.get, path, authRequired, headers);
+  // POST request.
   Future<http.Response> _post(String path,
           {bool? authRequired,
           Map<String, String>? headers,
           dynamic body}) async =>
       this._httpRequest(http.post, path, authRequired, headers, body);
+  // DELETE request.
   Future<http.Response> _delete(String path,
           {bool? authRequired, Map<String, String>? headers}) async =>
       this._httpRequest(http.delete, path, authRequired, headers);
@@ -100,19 +110,9 @@ class ApiClient {
   }
 
   // Refreshes the tokens and sets up a timer to refresh tokens periodically.
-  Future<bool> initSession({bool multipleTries = false}) async {
+  Future<bool> initSession() async {
     this._sessionTimer?.cancel();
-    final refreshed = multipleTries
-        ? await retry(
-            () => this._refreshedSession(),
-          )
-        : await this._refreshedSession();
-
-    if (refreshed) {
-      this._sessionTimer = Timer(
-          Duration(minutes: 14), () async => await this._refreshedSession());
-    }
-    return refreshed;
+    return await this._refreshedSession();
   }
 
   // Deletes the tokens.
@@ -124,6 +124,8 @@ class ApiClient {
     await AppGlobals.secureStorage!.delete(key: 'access_token');
   }
 
+  // By default gets the logged user's username and id.
+  // Optionally can be used to search a specific username or id.
   Future<ApiResponse> getUserInfo({String? id, String? username}) async {
     final params = Uri(queryParameters: {
       if (id != null) 'id': id,
@@ -134,6 +136,7 @@ class ApiClient {
     ));
   }
 
+  // Registers a new account.
   Future<ApiResponse> register(
       String username, String email, String password) async {
     return ApiResponse.fromHttpResponse(await this._post(
@@ -147,6 +150,7 @@ class ApiClient {
     ));
   }
 
+  // Deletes the logged user's account.
   Future<ApiResponse> unregister() async {
     return ApiResponse.fromHttpResponse(await this._delete(
       '/v1/auth/users',
@@ -154,12 +158,14 @@ class ApiClient {
     ));
   }
 
+  // Finds if an username is available.
   Future<ApiResponse> getUsernameAvailable(String username) async {
     return ApiResponse.fromHttpResponse(await this._get(
       '/v1/auth/users/$username',
     ));
   }
 
+  // Logs in and returns the appropiate tokens.
   Future<ApiResponse> login(String username, String password) async {
     return ApiResponse.fromHttpResponse(await this._post(
       '/v1/auth/sessions',
@@ -171,6 +177,9 @@ class ApiClient {
     ));
   }
 
+  // By default gets a list of the last uploaded images.
+  // Optionally can be used to search images by username, id, posted time range
+  // and limit the number of results.
   Future<ApiResponse> listImages(
       {String? uploader,
       String? uploaderId,
@@ -190,6 +199,7 @@ class ApiClient {
     ));
   }
 
+  // Posts an image on behalf of the logged user.
   Future<ApiResponse> postImage(File imageFile) async {
     return ApiResponse.fromHttpResponse(await this._post(
       '/v1/images',
@@ -198,13 +208,18 @@ class ApiClient {
     ));
   }
 
-  Future<ApiResponse> getImage(String filename) async {
+  // Gets an image file by its filename.
+  // NOTE: This is currently not used in favor of using CachedNetworkImage.
+  Future<ApiResponse> getImage(
+    String filename,
+  ) async {
     return ApiResponse.fromHttpResponse(await this._get(
       '/v1/images/$filename',
       authRequired: true,
     ));
   }
 
+  // Deletes an image by its filename.
   Future<ApiResponse> deleteImage(String filename) async {
     return ApiResponse.fromHttpResponse(await this._delete(
       '/v1/images/$filename',
@@ -212,6 +227,7 @@ class ApiClient {
     ));
   }
 
+  // Gets the server status.
   Future<ApiResponse> status() async {
     return ApiResponse.fromHttpResponse(await this._get(
       '/v1/status',

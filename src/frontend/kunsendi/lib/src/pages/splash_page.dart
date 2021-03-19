@@ -1,4 +1,8 @@
-import 'package:kunsendi/src/widgets/app_alert_dialog.dart';
+import 'dart:async';
+
+import 'package:flutter/scheduler.dart';
+import 'package:kunsendi/src/pages/home_page.dart';
+import 'package:kunsendi/src/pages/images_feed.dart';
 
 import '../globals.dart';
 import '../utils.dart';
@@ -13,44 +17,41 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage> {
   bool? _loading;
-  bool? _showRetry;
-
-  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
-      GlobalKey<ScaffoldMessengerState>();
 
   @override
-  void initState() async {
+  void initState() {
     super.initState();
     // this._loading = true;
+  }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Make sure logo is already loaded
+    precacheImage(AssetImage(HomeLogo.assetName), this.context);
+
+    // Start the session check.
     _tryRestartSession();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        key: this._scaffoldMessengerKey,
         backgroundColor: Colors.deepPurple[800],
-        body: Container()
-        // body: Stack(
-        //   children: <Widget>[
-        //     Center(child: HomeLogo()),
-        //     Align(
-        //         alignment: Alignment.bottomCenter,
-        //         child: HomeButton(
-        //           text: 'Retry',
-        //           heroTag: 'retry',
-        //         ))
-        //   ],
-        // )
-        // home: ImagesFeed(),
-        );
+        body: Stack(
+          children: <Widget>[
+            Center(child: HomeLogo()),
+            Visibility(
+                visible: this._loading ?? false, child: HomeLoadingOverlay()),
+          ],
+        ));
   }
 
   Future<void> _tryRestartSession() async {
+    // Hide the loading circle indicator and retry button.
     setState(() {
       this._loading = true;
-      this._showRetry = false;
     });
 
     final firstTime = !AppGlobals.localStorage!.containsKey('selected_api_uri');
@@ -62,40 +63,40 @@ class _SplashPageState extends State<SplashPage> {
     // Disable "logged out" flag for future
     AppGlobals.localStorage!.setBool('logged_out', false);
 
-    bool validSession, error = false;
-    try {
-      validSession = firstTime
-          ? false
-          : await ApiClient.getInstance().initSession(multipleTries: true);
-    } on ApiAuthException {
-      validSession = false;
-      error = true;
+    bool validSession = false;
+    if (!firstTime && !loggedOut) {
+      try {
+        validSession = await ApiClient.getInstance().initSession();
+      } on TimeoutException {}
     }
 
+    // Hide the loading circle indicator.
     setState(() {
       this._loading = false;
     });
 
-    final showSnack = (String text) => this
-        ._scaffoldMessengerKey
-        .currentState!
-        .showSnackBar(SnackBar(content: Text(text)));
+    // Session acquiring successful.
+    if (validSession) {
+      // Skip home page.
+      Navigator.pushReplacement(
+          this.context, MaterialPageRoute(builder: (context) => ImagesFeed()));
 
-    if (!firstTime && !error) {
-      if (!loggedOut && !validSession) {
-        showSnack('Logged out because of inactivity.');
-      } else if (loggedOut) {
-        showSnack('Sucessfully logged out.');
-      }
-    } else if (error) {
-      showDialog(
-          context: this._scaffoldMessengerKey.currentContext!,
-          builder: (context) => AppAlertDialog(
-              text:
-                  'There was an error connecting to the server.\nCheck your connection and try again.'));
-      setState(() {
-        this._showRetry = true;
+      // Show a snackbar in the new page.
+      SchedulerBinding.instance?.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+            content: Text(
+                'Logged in as ${AppGlobals.localStorage!.getString('logged_username')}.')));
       });
+    }
+    // Either logged out manually, or never had session.
+    else {
+      if (loggedOut) {
+        ScaffoldMessenger.of(this.context)
+            .showSnackBar(SnackBar(content: Text('Successfully logged out.')));
+      }
+      // Go to home page.
+      Navigator.pushReplacement(
+          this.context, MaterialPageRoute(builder: (context) => HomePage()));
     }
   }
 }

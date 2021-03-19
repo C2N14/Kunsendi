@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:kunsendi/src/utils.dart';
 
 import '../globals.dart';
@@ -144,8 +145,7 @@ class _RegisterPageState extends State<RegisterPage> {
       onPressed: () {
         if (this._formKey.currentState?.validate() ?? false) {
           this._formKey.currentState?.save();
-          this._register(
-              context: context, pageBuilder: (context) => LoginPage());
+          this._register(pageBuilder: (context) => LoginPage());
         }
       },
     );
@@ -196,37 +196,55 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _register(
-      {required BuildContext context,
-      required Widget Function(BuildContext) pageBuilder}) async {
+      {required Widget Function(BuildContext) pageBuilder}) async {
     // Display the loading circle indicator.
     setState(() {
       this._loading = true;
     });
 
-    final response = await ApiClient.getInstance()
-        .register(this._username!, this._email!, this._password!);
-    final registered = response.statusCode == HttpStatus.created;
+    ApiResponse? response;
+    try {
+      response = await ApiClient.getInstance()
+          .register(this._username!, this._email!, this._password!);
+    } on TimeoutException {}
 
     // Hide the loading circle indicator.
     setState(() {
       this._loading = false;
     });
 
-    if (!registered) {
+    if (response?.statusCode != HttpStatus.created) {
+      String dialogText;
+
+      // Different text depending on the response.
+      switch (response?.statusCode) {
+        // Different text depending on the response.
+        case HttpStatus.internalServerError:
+          dialogText = 'There was an error with the server request.';
+          break;
+        case null:
+          dialogText = "Couldn't establish connection to the server.";
+          break;
+        default:
+          dialogText =
+              "There was an error with the request.\nVerify your input and try again.";
+      }
+
       showDialog(
-          context: context,
-          builder: (context) => AppAlertDialog(
-                text:
-                    'There was an error with the request.\nVerify your input and try again.',
-              ));
+          context: this.context,
+          builder: (context) => AppAlertDialog(text: dialogText));
     } else {
       AppGlobals.localStorage!.setString('username', this._username ?? '');
 
+      // Go to the login page.
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: pageBuilder));
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Successfully registered.'),
-      ));
+          this.context, MaterialPageRoute(builder: pageBuilder));
+
+      // Show a snackbar in the login page.
+      SchedulerBinding.instance?.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(this.context)
+            .showSnackBar(SnackBar(content: Text('Successfully registered.')));
+      });
     }
   }
 }

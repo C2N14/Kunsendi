@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-import '../models/image_data.dart';
-
-import '../globals.dart';
+import 'package:kunsendi/src/widgets/kunsendi_cached_image.dart';
 
 class ImageCard extends StatefulWidget {
   @override
-  const ImageCard({Key? key, required this.imageData}) : super(key: key);
-  final ImageData imageData;
+  _ImageCardState createState() => _ImageCardState();
 
   @override
-  _ImageCardState createState() => _ImageCardState();
+  ImageCard({Key? key, required this.image}) : super(key: key);
+  final KunsendiCachedImage image;
 }
 
 class _ImageCardState extends State<ImageCard> {
@@ -21,13 +18,12 @@ class _ImageCardState extends State<ImageCard> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Image.network(
-              '${AppGlobals.localStorage!.getString('selected_api_uri')}/v1/images/${widget.imageData.filename}'), // TODO: fix this
+          this.widget.image,
           ListTile(
-            title: Text(widget.imageData.uploader),
+            title: Text(this.widget.image.imageData.uploader),
             subtitle: Text(
               DateFormat('yyyy-MM-dd — kk:mm')
-                  .format(widget.imageData.uploadDate)
+                  .format(this.widget.image.imageData.uploadDate)
                   .toString(),
               // style: TextStyle(color: Colors.black.withOpacity(0.6)),
             ),

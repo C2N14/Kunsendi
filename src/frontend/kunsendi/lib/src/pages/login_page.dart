@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -26,7 +27,6 @@ class _LoginPageState extends State<LoginPage> {
 
   final _usernameController = TextEditingController();
   void _loadSavedUsername() async {
-    // final prefs = await SharedPreferences.getInstance();
     final savedUsername = AppGlobals.localStorage!.getString('username');
     setState(() {
       _usernameController.text = savedUsername ?? '';
@@ -136,26 +136,40 @@ class _LoginPageState extends State<LoginPage> {
       this._loading = true;
     });
 
-    final response = await ApiClient.getInstance()
-        .login(this._username ?? '', this._password ?? '');
+    ApiResponse? response;
+    try {
+      response = await ApiClient.getInstance()
+          .login(this._username ?? '', this._password ?? '');
+    } on TimeoutException {}
 
     // Hide the loading circle indicator.
     setState(() {
       this._loading = false;
     });
 
-    if (response.statusCode != HttpStatus.created) {
+    if (response?.statusCode != HttpStatus.created) {
+      String dialogText;
+
+      // Different text depending on the response.
+      switch (response?.statusCode) {
+        case HttpStatus.internalServerError:
+          dialogText = 'There was an error with the server request.';
+          break;
+        case null:
+          dialogText = "Couldn't establish connection to the server.";
+          break;
+        default:
+          dialogText =
+              "Couldn't verify credentials.\nVerify your input and try again.";
+      }
+
       showDialog(
           context: context,
-          builder: (context) => AppAlertDialog(
-                text: response.statusCode == HttpStatus.internalServerError
-                    ? 'There was an error with the server request.'
-                    : 'Couldn\'t verify credentials.\nVerify your input and try again.',
-              ));
+          builder: (context) => AppAlertDialog(text: dialogText));
     } else {
       // Securely save the returned tokens.
       await AppGlobals.secureStorage!
-          .write(key: 'access_token', value: response.payload['access_token']);
+          .write(key: 'access_token', value: response!.payload['access_token']);
       await AppGlobals.secureStorage!.write(
           key: 'refresh_token', value: response.payload['refresh_token']);
       AppGlobals.localStorage!

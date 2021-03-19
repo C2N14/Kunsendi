@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -62,7 +63,7 @@ class _HomePageState extends State<HomePage> {
           return 'Invalid hostname format';
         }
 
-        // Maybe this souldn't happen here, but I can't seem to find
+        // Maybe this shouldn't happen here, but I can't seem to find
         // another effective way to achieve this.
         setState(() {
           this._serverApiUri = parsedUri;
@@ -155,9 +156,14 @@ class _HomePageState extends State<HomePage> {
     AppGlobals.localStorage!
         .setString('selected_api_uri', this._serverApiUri.toString());
 
-    final response = await ApiClient.getInstance().status();
-    final validApi = response.statusCode == HttpStatus.ok &&
-        response.payload.containsKey('uptime');
+    ApiResponse? response;
+
+    try {
+      response = await ApiClient.getInstance().status();
+    } on TimeoutException {}
+
+    final validApi = response?.statusCode == HttpStatus.ok &&
+        (response?.payload.containsKey('uptime') ?? false);
 
     // Hide the loading circle indicator.
     setState(() {
@@ -169,7 +175,7 @@ class _HomePageState extends State<HomePage> {
         context: context,
         builder: (context) => AppAlertDialog(
           text:
-              'Couldn\'t validate hostname.\nVerify your input or try with a different one.',
+              "Couldn't validate hostname.\nVerify your input or try with a different one.",
         ),
       );
     } else {

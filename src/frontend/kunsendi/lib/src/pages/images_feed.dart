@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/image_data.dart';
 import '../widgets/image_card.dart';
 import '../globals.dart';
+import 'package:flutter/rendering.dart';
 
 class ImagesFeed extends StatefulWidget {
   static String tag = 'ímages-feed';
@@ -11,58 +12,45 @@ class ImagesFeed extends StatefulWidget {
 }
 
 class _ImagesFeedState extends State<ImagesFeed> {
-  String? _loggedUsername;
+  // Controller to hide the action button programatically.
+  ScrollController? _scrollController;
+  bool? _hideFAB;
 
   @override
   void initState() {
     super.initState();
 
-    this._loggedUsername = AppGlobals.localStorage!.getString('username');
+    _scrollController = ScrollController();
+    _scrollController!.addListener(() {
+      setState(() {
+        this._hideFAB = _scrollController!.position.userScrollDirection !=
+            ScrollDirection.forward;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Hello world!'),
-      ),
-      // body: Container()
-      body: ListView(
-        children: [
-          ImageCard(
-              imageData: ImageData(
-                  uploader: 'pogo',
-                  filename:
-                      'https://assets.pogo.org/image/content/2020/FDA_Panel_Reviewing_Pfizer_Vaccine_Excludes_Some_Experts_1150.jpg?mtime=20201209202119',
-                  uploadDate: DateTime.now(),
-                  width: 0,
-                  height: 0)),
-          ImageCard(
-              imageData: ImageData(
-                  uploader: 'bigstock',
-                  filename:
-                      'https://p.bigstockphoto.com/GeFvQkBbSLaMdpKXF1Zv_bigstock-Aerial-View-Of-Blue-Lakes-And--227291596.jpg',
-                  uploadDate: DateTime.now(),
-                  width: 0,
-                  height: 0)),
-          ImageCard(
-              imageData: ImageData(
-                  uploader: 'arstechnica',
-                  filename:
-                      'https://cdn.arstechnica.net/wp-content/uploads/2016/02/5718897981_10faa45ac3_b-640x624.jpg',
-                  uploadDate: DateTime.now(),
-                  width: 0,
-                  height: 0)),
-          ImageCard(
-              imageData: ImageData(
-                  uploader: 'sproutsocial',
-                  filename:
-                      'https://media.sproutsocial.com/uploads/2017/02/10x-featured-social-media-image-size.png',
-                  uploadDate: DateTime.now(),
-                  width: 0,
-                  height: 0)),
-        ],
-      ),
-    );
+        appBar: AppBar(
+          title: Text('Hello world!'),
+        ),
+        // body: Container()
+        body: ListView(
+          controller: this._scrollController,
+          children: [],
+        ),
+        floatingActionButton: (this._hideFAB ?? false)
+            ? null
+            : FloatingActionButton(
+                child: Icon(Icons.add_a_photo_outlined),
+                onPressed: () {},
+              ));
+  }
+
+  @override
+  void dispose() {
+    _scrollController?.dispose();
+    super.dispose();
   }
 }

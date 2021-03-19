@@ -19,16 +19,6 @@ class HomeButton extends StatelessWidget {
           child: Text(this.text,
               style: Theme.of(context).textTheme.homeButtonTextStyle),
         ));
-    // child: RaisedButton(
-    //   shape: RoundedRectangleBorder(
-    //     borderRadius: BorderRadius.circular(24.0),
-    //   ),
-    //   onPressed: this.onPressed,
-    //   padding: EdgeInsets.all(20.0),
-    //   color: Colors.deepPurpleAccent,
-    //   child: Text(this.text,
-    //       style: Theme.of(context).textTheme.homeButtonTextStyle),
-    // ));
   }
 
   @override
