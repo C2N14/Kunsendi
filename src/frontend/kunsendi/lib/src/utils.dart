@@ -200,11 +200,26 @@ class ApiClient {
   }
 
   // Posts an image on behalf of the logged user.
+  // This is an exception to the other methods in that it doesn't use this._post
+  // to handle the request, since it's dealing with a Multipart file.
   Future<ApiResponse> postImage(File imageFile) async {
-    return ApiResponse.fromHttpResponse(await this._post(
+    final multipart = http.MultipartFile.fromPath('file', imageFile.path);
+
+    // Special http function to handle multipart request.
+    final multiPostFunc = (target, {Map<String, String>? headers}) async {
+      var request = http.MultipartRequest('POST', target);
+      request.files.add(await multipart);
+      request.headers.addAll(headers ?? const {});
+
+      final response = await request.send();
+      return http.Response.fromStream(response);
+    };
+
+    // Use this function in the request.
+    return ApiResponse.fromHttpResponse(await this._httpRequest(
+      multiPostFunc,
       '/v1/images',
-      body: imageFile.readAsBytesSync(),
-      authRequired: true,
+      true,
     ));
   }
 

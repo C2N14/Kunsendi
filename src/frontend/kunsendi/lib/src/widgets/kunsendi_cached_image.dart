@@ -12,13 +12,15 @@ class KunsendiCachedImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CachedNetworkImage(
-      imageUrl:
-          '${AppGlobals.localStorage!.getString('selected_api_uri')}/v1/images/${this.imageData.filename}',
-      placeholder: (context, url) => AspectRatio(
-        aspectRatio: this.imageData.width / this.imageData.height,
-        child: Center(child: CircularProgressIndicator()),
-      ),
-    );
+    return Hero(
+        tag: this.imageData.filename,
+        child: CachedNetworkImage(
+          imageUrl:
+              '${AppGlobals.localStorage!.getString('selected_api_uri')}/v1/images/${this.imageData.filename}',
+          placeholder: (context, url) => AspectRatio(
+            aspectRatio: this.imageData.width / this.imageData.height,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ));
   }
 }
