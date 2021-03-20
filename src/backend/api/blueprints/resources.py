@@ -118,7 +118,7 @@ def post_image(**kwargs):
             'err': str(e)
         }), HTTPStatus.BAD_REQUEST
 
-    return jsonify({'filename': str(image.id)}), HTTPStatus.CREATED
+    return jsonify({'filename': f'{image.id}{extension}'}), HTTPStatus.CREATED
 
 
 @resources_blueprint.route('/api/v1/images/<filename>', methods=['GET'])
