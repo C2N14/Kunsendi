@@ -40,7 +40,7 @@ class _SplashPageState extends State<SplashPage> {
     return Scaffold(
         backgroundColor: Colors.deepPurple[800],
         body: Stack(
-          children: <Widget>[
+          children: [
             Center(child: HomeLogo()),
             Visibility(
                 visible: this._loading ?? false, child: HomeLoadingOverlay()),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:retry/retry.dart';
 
@@ -11,15 +12,20 @@ import 'globals.dart';
 class ApiResponse {
   final int statusCode;
   final dynamic payload;
-  const ApiResponse(this.statusCode, this.payload);
+  final Map<String, String> headers;
+  const ApiResponse(this.statusCode, this.payload, this.headers);
 
-  factory ApiResponse.fromHttpResponse(http.Response response) {
-    print(response.headers);
+  factory ApiResponse.fromHttpResponse(http.Response response,
+      {bool bytes = false}) {
+    debugPrint(response.headers.toString());
     return ApiResponse(
         response.statusCode,
-        response.headers['content-type'] == 'application/json'
-            ? json.decode(response.body)
-            : response.body);
+        bytes
+            ? response.bodyBytes
+            : response.headers['content-type'] == 'application/json'
+                ? json.decode(response.body)
+                : response.body,
+        response.headers);
   }
 }
 
@@ -43,7 +49,7 @@ class ApiClient {
     return await retry(() async {
       // If authentication is required, try with the access token if not specified in the headers.
       if (authRequired ?? false) {
-        headers ??= Map<String, String>();
+        headers ??= {};
         headers!['Authorization'] =
             'Bearer ${await AppGlobals.secureStorage!.read(key: 'access_token')}';
       }
@@ -71,7 +77,7 @@ class ApiClient {
         .timeout(Duration(seconds: 10));
   }
 
-  // Specific HTTP requests.
+  // Special HTTP requests.
   // GET request.
   Future<http.Response> _get(String path,
           {bool? authRequired, Map<String, String>? headers}) async =>
@@ -86,6 +92,44 @@ class ApiClient {
   Future<http.Response> _delete(String path,
           {bool? authRequired, Map<String, String>? headers}) async =>
       this._httpRequest(http.delete, path, authRequired, headers);
+
+  // Base function for Multipart HTTP requests.
+  // This is needed since the mechanism for doing multipart requests is totally
+  // different from regular requests in Dart's http library.
+  Future<http.Response> _multipartHttpRequest(String path,
+      [String type = 'GET',
+      bool? authRequired,
+      Map<String, String>? multipartHeaders,
+      http.MultipartFile? multipartFile]) async {
+    // Special http function to handle multipart request.
+    final multiPostFunc =
+        (Uri funTarget, {Map<String, String>? headers}) async {
+      var request = http.MultipartRequest(type, funTarget);
+      if (type == 'POST') {
+        request.files.add(multipartFile!);
+      }
+      request.headers.addAll(headers ?? const {});
+
+      final response = await request.send();
+      return http.Response.fromStream(response);
+    };
+
+    // Use the base HTTP request.
+    return await this
+        ._httpRequest(multiPostFunc, path, authRequired, multipartHeaders);
+  }
+
+  // Specific Multipart HTTP requests.
+  // GET request.
+  Future<http.Response> _multipartGet(String path,
+          {bool? authRequired, Map<String, String>? headers}) async =>
+      this._multipartHttpRequest(path, 'GET', authRequired, headers);
+  // POST request.
+  Future<http.Response> _multipartPost(
+          String path, http.MultipartFile multipartFile,
+          {bool? authRequired, Map<String, String>? headers}) async =>
+      this._multipartHttpRequest(
+          path, 'POST', authRequired, headers, multipartFile);
 
   // Tries using the stored refresh token to refresh both tokens.
   Future<bool> _refreshedSession() async {
@@ -191,7 +235,7 @@ class ApiClient {
       if (uploaderId != null) 'uploader_id': uploaderId,
       if (from != null) 'from': (from.millisecondsSinceEpoch / 1000).toString(),
       if (to != null) 'to': (to.millisecondsSinceEpoch / 1000).toString(),
-      if (limit != null) 'limit': limit,
+      if (limit != null) 'limit': limit.toString(),
     });
     return ApiResponse.fromHttpResponse(await this._get(
       '/v1/images${params.toString()}',
@@ -200,38 +244,28 @@ class ApiClient {
   }
 
   // Posts an image on behalf of the logged user.
-  // This is an exception to the other methods in that it doesn't use this._post
-  // to handle the request, since it's dealing with a Multipart file.
+  // One of the two multipart requests in the client.
   Future<ApiResponse> postImage(File imageFile) async {
-    final multipart = http.MultipartFile.fromPath('file', imageFile.path);
-
-    // Special http function to handle multipart request.
-    final multiPostFunc = (target, {Map<String, String>? headers}) async {
-      var request = http.MultipartRequest('POST', target);
-      request.files.add(await multipart);
-      request.headers.addAll(headers ?? const {});
-
-      final response = await request.send();
-      return http.Response.fromStream(response);
-    };
-
-    // Use this function in the request.
-    return ApiResponse.fromHttpResponse(await this._httpRequest(
-      multiPostFunc,
-      '/v1/images',
-      true,
-    ));
+    return ApiResponse.fromHttpResponse(
+        await this._multipartPost(
+          '/v1/images',
+          await http.MultipartFile.fromPath('file', imageFile.path),
+          authRequired: true,
+        ),
+        bytes: true);
   }
 
   // Gets an image file by its filename.
-  // NOTE: This is currently not used in favor of using CachedNetworkImage.
+  // One of the two multipart requests in the client.
   Future<ApiResponse> getImage(
     String filename,
   ) async {
-    return ApiResponse.fromHttpResponse(await this._get(
-      '/v1/images/$filename',
-      authRequired: true,
-    ));
+    return ApiResponse.fromHttpResponse(
+        await this._multipartGet(
+          '/v1/images/$filename',
+          authRequired: true,
+        ),
+        bytes: true);
   }
 
   // Deletes an image by its filename.

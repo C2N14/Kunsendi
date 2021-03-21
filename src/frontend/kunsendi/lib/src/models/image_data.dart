@@ -5,10 +5,14 @@ class ImageData {
       required this.uploadDate,
       required this.width,
       required this.height});
+
+  // Note that Dart doesn't support decoding a DateTime from a double, so it must
+  // be rounded.
   factory ImageData.fromJson(Map<String, dynamic> json) => ImageData(
         filename: json['filename'],
         uploader: json['uploader'],
-        uploadDate: DateTime.fromMillisecondsSinceEpoch(json['upload_date'],
+        uploadDate: DateTime.fromMillisecondsSinceEpoch(
+            json['upload_date'].round(),
             isUtc: true),
         width: json['width'],
         height: json['height'],
