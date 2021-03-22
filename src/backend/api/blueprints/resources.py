@@ -10,6 +10,8 @@ from mongoengine.errors import DoesNotExist
 
 resources_blueprint = Blueprint('resources', __name__)
 
+from math import trunc
+
 from .. import ALLOWED_EXTENSIONS, UPLOAD_PATH, models, utils
 
 PROJECT_PIPELINE = {
@@ -21,9 +23,7 @@ PROJECT_PIPELINE = {
     },
     'uploader': True,
     'upload_date': {
-        '$divide': [{
-            '$toLong': '$upload_date'
-        }, 1000]
+        '$toLong': '$upload_date'
     },
     'width': True,
     'height': True,
@@ -34,13 +34,18 @@ PROJECT_PIPELINE = {
 @utils.token_required('access')
 def get_image_info(**kwargs):
     try:
-        now = datetime.utcnow()
+        now = utils.truncate_microseconds(datetime.utcnow())
 
+        query = {}
+
+        # to_arg is in milliseconds, must be converted to seconds
+        # (note that truncate_microseconds is not needed)
         to_arg = request.args.get('to')
-        query = {
-            'upload_date__lte':
-            datetime.utcfromtimestamp(float(to_arg)) if to_arg else now
-        }
+        if to_arg is not None:
+            query['upload_date__lte'] = datetime.utcfromtimestamp(
+                trunc(float(to_arg)) / 1000)
+        else:
+            query['upload_date__lte'] = now
 
         # prioritizes the id arg to the name arg
         user_id_arg = request.args.get('uploader_id')
@@ -50,10 +55,11 @@ def get_image_info(**kwargs):
         elif username_arg is not None:
             query['uploader'] = username_arg
 
+        # from_arg is also in milliseconds
         from_arg = request.args.get('from')
         if from_arg is not None:
             query['upload_date__gte'] = datetime.utcfromtimestamp(
-                float(from_arg))
+                trunc(float(from_arg)) / 1000)
 
         limit_arg = request.args.get('limit')
         if limit_arg is None:
@@ -68,13 +74,16 @@ def get_image_info(**kwargs):
             **query).order_by('-upload_date')[:limit].aggregate(pipeline)
 
     except ValueError as e:
-        return jsonify({'msg': 'Invalid parameter values', 'err': str(e)})
+        return jsonify({
+            'msg': 'Invalid parameter values',
+            'err': str(e)
+        }), HTTPStatus.BAD_REQUEST
 
     except OSError as e:
         return jsonify({
             'msg': 'Invalid parameter values',
             'err': 'Invalid timestamp'
-        })
+        }), HTTPStatus.BAD_REQUEST
 
     return jsonify(list(results)), HTTPStatus.OK
 

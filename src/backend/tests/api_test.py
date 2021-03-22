@@ -1,3 +1,4 @@
+import filecmp
 import json
 import os
 import shutil
@@ -7,8 +8,7 @@ import unittest
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
-from unittest.mock import Mock, patch
-import filecmp
+from unittest.mock import patch
 
 import imagesize
 import jwt
@@ -16,7 +16,7 @@ import mongomock
 from freezegun import freeze_time
 from mongoengine import connect, disconnect
 
-package_path = str(Path(__file__).parent.parent.parent)
+package_path = str(Path(__file__).parents[2])
 
 if package_path not in sys.path:
     sys.path.append(package_path)
@@ -28,7 +28,7 @@ from backend.tests import tests_dir
 from backend.tests.utils import token_to_header
 
 fixtures_dir = tests_dir / 'fixtures'
-starting_now = mongomock.utcnow()
+starting_now = mongomock.utcnow().replace(microsecond=0)
 immediate_now = starting_now + timedelta(milliseconds=1)
 
 
@@ -85,22 +85,19 @@ class ImageApiTest(AuthenticatedApiTest):
         # mongomock doesn't support $toLong yet, so it must be patched with an
         # alternativefor it to work
         cls.patcher = patch.dict(
-            'backend.api.blueprints.resources.PROJECT_PIPELINE', {
-                'upload_date': {
-                    '$divide': [{
-                        '$toInt': {
-                            '$toDecimal': '$upload_date'
-                        }
-                    }, 1000]
-                }
-            },
+            'backend.api.blueprints.resources.PROJECT_PIPELINE',
+            {'upload_date': {
+                '$toInt': {
+                    '$toDecimal': '$upload_date'
+                },
+            }},
             clear=False)
         cls.patcher.start()
 
         # artificially upload images (1 to 3) as uploaded by the mock users
         cls.images_dir = fixtures_dir / 'images'
         # cls.posted_delta = timedelta(seconds=1)
-        posted_delta = timedelta(minutes=1)
+        posted_delta = timedelta(milliseconds=1)
         cls.final_posted = immediate_now + posted_delta * 2
 
         for i, file in enumerate(cls.images_dir.glob('mock_image_[1-3].*')):
@@ -374,7 +371,7 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
         self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
 
         # then, try getting all the images
-        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+        with freeze_time(self.final_posted):
             response = method(url, headers=token_header)
             self.assertEqual(response.status_code, HTTPStatus.OK)
             response_payload = json.loads(response.data)
@@ -402,11 +399,13 @@ class ImagesBasicTest(ImageApiTest, unittest.TestCase):
             final = self.final_posted + utc_offset - timedelta(milliseconds=1)
 
             # then, filter by date
-            url_query = '{}?from={}&to={}'.format(url, initial.timestamp(),
-                                                  final.timestamp())
+            url_query = '{}?from={}&to={}'.format(
+                url, round(initial.timestamp() * 1000),
+                round(final.timestamp() * 1000))
             response = method(url_query, headers=token_header)
             self.assertEqual(response.status_code, HTTPStatus.OK)
             response_payload = json.loads(response.data)
+
             self.assertEqual(len(response_payload), 1)
             self.assertEqual(response_payload[0]['uploader'],
                              self.mock_users[1]['username'])
@@ -513,7 +512,7 @@ class ImageAdvancedTest(SpecialImageApiTest, unittest.TestCase):
         method = self.client.delete
         token_header = token_to_header(self.tokens['access_token'])
 
-        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+        with freeze_time(self.final_posted):
             # first, try without token
             response = method(f'{url}doesnt_matter.mock')
             self.assertEqual(response.status_code, HTTPStatus.UNAUTHORIZED)
@@ -526,6 +525,10 @@ class ImageAdvancedTest(SpecialImageApiTest, unittest.TestCase):
             response = self.client.get('/api/v1/images', headers=token_header)
             response_payload = json.loads(response.data)
 
+            # make sure we got all of the images
+            self.assertEqual(len(response_payload), 3)
+
+            # try one by one, checking for appropriate permissions
             for image_data in response_payload:
                 response = method(f'{url}{image_data["filename"]}',
                                   headers=token_header)
@@ -549,7 +552,7 @@ class ImageFinalTest(SpecialImageApiTest, unittest.TestCase):
         method = self.client.delete
         token_header = token_to_header(self.tokens['access_token'])
 
-        with freeze_time(self.final_posted + timedelta(milliseconds=1)):
+        with freeze_time(self.final_posted):
             response = method(url, headers=token_header)
             self.assertEqual(response.status_code, HTTPStatus.NO_CONTENT)
 

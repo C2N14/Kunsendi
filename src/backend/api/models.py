@@ -1,9 +1,10 @@
-import os
 from datetime import datetime
 
 import mongoengine as db
 from mongoengine.errors import ValidationError
 from werkzeug.security import generate_password_hash
+
+from . import utils
 
 
 class User(db.Document):
@@ -34,7 +35,11 @@ class User(db.Document):
 class Image(db.Document):
     """Model for Image document"""
 
-    upload_date = db.DateTimeField(required=True, default=datetime.utcnow)
+    # Mongo should already truncate microseconds when storing datetimes, but for
+    # consistency with MongoMock it's also done manually
+    upload_date = db.DateTimeField(
+        required=True,
+        default=lambda: utils.truncate_microseconds(datetime.utcnow()))
 
     # denormalized data is still kinda weird for me!
     uploader = db.StringField(required=True)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from os import truncate
 from .. import START_TIME
 from flask import Blueprint, jsonify
 
@@ -9,5 +10,6 @@ info_blueprint = Blueprint('info', __name__)
 def get_status():
     return jsonify({
         'uptime':
-        (datetime.utcnow().timestamp() - START_TIME.timestamp()) * 1000
+        truncate(
+            (datetime.utcnow().timestamp() - START_TIME.timestamp()) * 1000)
     })

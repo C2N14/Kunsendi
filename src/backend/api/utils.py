@@ -1,7 +1,9 @@
+from datetime import datetime
 from functools import wraps
-from flask import request, jsonify
-import jwt
 from http import HTTPStatus
+
+import jwt
+from flask import jsonify, request
 
 from . import SECRET_KEY
 
@@ -111,3 +113,14 @@ def valid_json_payload(fields_dict):
         return wrapper
 
     return decorator
+
+
+def truncate_microseconds(original_datetime: datetime) -> datetime:
+    """
+    For compatibility reasons (working with Dart and Mongo), it is much better
+    to just deal up to milliseconds when working with datetimes.
+
+    As such, this truncates the microsecond data up to its first digit.
+    """
+    return original_datetime.replace(
+        microsecond=(original_datetime.microsecond // 1000) * 1000)
