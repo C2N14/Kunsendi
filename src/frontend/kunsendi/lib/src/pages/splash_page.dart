@@ -7,7 +7,7 @@ import 'package:kunsendi/src/pages/images_feed.dart';
 import '../globals.dart';
 import '../utils.dart';
 import '../widgets/home_logo.dart';
-import '../widgets/home_loading.dart';
+import '../widgets/loading_indicator.dart';
 import 'package:flutter/material.dart';
 
 class SplashPage extends StatefulWidget {
@@ -43,7 +43,7 @@ class _SplashPageState extends State<SplashPage> {
           children: [
             Center(child: HomeLogo()),
             Visibility(
-                visible: this._loading ?? false, child: HomeLoadingOverlay()),
+                visible: this._loading ?? false, child: LoadingOverlay()),
           ],
         ));
   }

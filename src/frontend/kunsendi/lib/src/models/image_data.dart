@@ -11,8 +11,7 @@ class ImageData {
   factory ImageData.fromJson(Map<String, dynamic> json) => ImageData(
         filename: json['filename'],
         uploader: json['uploader'],
-        uploadDate: DateTime.fromMillisecondsSinceEpoch(
-            json['upload_date'].round(),
+        uploadDate: DateTime.fromMillisecondsSinceEpoch(json['upload_date'],
             isUtc: true),
         width: json['width'],
         height: json['height'],

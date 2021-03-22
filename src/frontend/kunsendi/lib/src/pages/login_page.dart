@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../globals.dart';
 import '../widgets/app_alert_dialog.dart';
 import '../widgets/home_button.dart';
-import '../widgets/home_loading.dart';
+import '../widgets/loading_indicator.dart';
 import '../widgets/home_logo.dart';
 import '../widgets/home_text_field.dart';
 import 'images_feed.dart';
@@ -116,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
           Visibility(
             visible: this._loading,
-            child: HomeLoadingOverlay(),
+            child: LoadingOverlay(),
           ),
         ]));
   }

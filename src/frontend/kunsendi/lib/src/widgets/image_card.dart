@@ -14,23 +14,27 @@ class ImageCard extends StatefulWidget {
 class _ImageCardState extends State<ImageCard> {
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          this.widget.image,
-          ListTile(
-            title: Text(this.widget.image.imageData.uploader),
-            subtitle: Text(
-              DateFormat('yyyy-MM-dd — kk:mm')
-                  .format(this.widget.image.imageData.uploadDate)
-                  .toString(),
-              // style: TextStyle(color: Colors.black.withOpacity(0.6)),
+    return AnimatedOpacity(
+      opacity: 1.0,
+      duration: Duration(milliseconds: 300),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            this.widget.image,
+            ListTile(
+              title: Text(this.widget.image.imageData.uploader),
+              subtitle: Text(
+                DateFormat('yyyy-MM-dd — kk:mm')
+                    .format(this.widget.image.imageData.uploadDate)
+                    .toString(),
+                // style: TextStyle(color: Colors.black.withOpacity(0.6)),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+        margin: EdgeInsets.all(15),
       ),
-      margin: EdgeInsets.all(15),
     );
   }
 }

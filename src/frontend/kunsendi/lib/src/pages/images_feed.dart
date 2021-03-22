@@ -20,9 +20,11 @@ class ImagesFeed extends StatefulWidget {
 }
 
 class _ImagesFeedState extends State<ImagesFeed> {
-  // Controller to hide the action button programatically.
+  // Controller to hide the action button programmatically.
   ScrollController? _scrollController;
   bool? _hideFAB;
+  bool? _hideList;
+  bool _done = true;
 
   List<KunsendiCachedImage> _images = [];
 
@@ -34,29 +36,38 @@ class _ImagesFeedState extends State<ImagesFeed> {
 
     this._scrollController = ScrollController();
     this._scrollController!.addListener(this._scrollListener);
+
+    // Load the images for the first time.
+    this._refreshImages();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text('Kunsendi'),
-        ),
-        body: RefreshIndicator(
-          onRefresh: this._refreshImages,
+      appBar: AppBar(
+        title: Text('Kunsendi'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: this._refreshImages,
+        child: AnimatedOpacity(
+          opacity: (this._hideList ?? false) ? 0.0 : 1.0,
+          duration: Duration(milliseconds: 300),
           child: ListView.builder(
+              physics: AlwaysScrollableScrollPhysics(),
               controller: this._scrollController,
               itemCount: this._images.length,
               itemBuilder: (context, index) {
                 return ImageCard(image: this._images[index]);
               }),
         ),
-        floatingActionButton: (this._hideFAB ?? false)
-            ? null
-            : FloatingActionButton(
-                child: Icon(Icons.add_a_photo_outlined),
-                onPressed: _selectImage,
-              ));
+      ),
+      floatingActionButton: (this._hideFAB ?? false)
+          ? null
+          : FloatingActionButton(
+              child: Icon(Icons.add_a_photo_outlined),
+              onPressed: _selectImage,
+            ),
+    );
   }
 
   @override
@@ -65,40 +76,58 @@ class _ImagesFeedState extends State<ImagesFeed> {
     super.dispose();
   }
 
-  // Used for hiding the FloatingActionButton and for lazily generating more images.
+  /// Used for hiding the FloatingActionButton and for lazily generating more
+  /// images.
   void _scrollListener() {
     ScrollPosition currentPosition = _scrollController!.position;
+    bool noMoreResults = true;
 
     setState(() {
       this._hideFAB =
           currentPosition.userScrollDirection != ScrollDirection.forward;
-      if (currentPosition.extentAfter < 500) {
+      if (!this._done && currentPosition.extentAfter < 500) {
         // Make sure it queries for images after the last displayed.
-        final lastImageTime = this._images.isNotEmpty
-            ? this._images.last.imageData.uploadDate
-            : null;
+        final lastImageData =
+            this._images.isNotEmpty ? this._images.last.imageData : null;
 
-        this._fetchImages(upTo: lastImageTime, results: 15).forEach((element) {
+        this
+            ._fetchImages(upTo: lastImageData?.uploadDate, results: 15)
+            .forEach((element) {
+          noMoreResults = false;
           this._images.add(element);
         });
+        this._done = noMoreResults;
       }
     });
   }
 
-  // Closes a dialog.
+  /// Pops navigator to close a dialog.
   void _closeDialog() {
     Navigator.of(this.context, rootNavigator: true).pop();
   }
 
+  /// Clears all the images and gets new ones.
   Future<void> _refreshImages() async {
-    this._images.clear();
+    // Fade the list out
+    setState(() {
+      this._hideList = true;
+    });
+
+    this._done = false;
+
+    // Remove all images and make list visible again.
+    setState(() {
+      this._images.clear();
+      this._hideList = false;
+    });
+
     this._images = await this._fetchImages(results: 15).toList();
     setState(() {});
   }
 
-  // Stream to query for new images.
+  /// [Stream] to query for new images.
   Stream<KunsendiCachedImage> _fetchImages(
-      {DateTime? upTo, int? results}) async* {
+      {DateTime? upTo, int? results, String? excludedFilename}) async* {
     debugPrint('getting images...');
 
     ApiResponse? response;
@@ -110,20 +139,30 @@ class _ImagesFeedState extends State<ImagesFeed> {
       errorResponse = response.statusCode != HttpStatus.ok;
     } on TimeoutException {
       errorResponse = true;
+    } on Exception catch (e) {
+      debugPrint(e.toString());
+      debugPrint(response?.payload?.toString() ?? 'no response body');
     }
 
     if (errorResponse) {
+      // TODO: error toast
       return;
     }
 
     for (var img in response!.payload) {
-      yield KunsendiCachedImage(imageData: ImageData.fromJson(img));
+      if (img['filename'] != excludedFilename) {
+        yield KunsendiCachedImage(imageData: ImageData.fromJson(img));
+      }
     }
   }
 
-  // Logic to start the image selection.
+  /// Logic to start the image selection process.
   Future<void> _selectImage() async {
-    // Some arbitrary file size restrictions to try to keep it below reasonable limits.
+    // this._refreshImages();
+
+    // return;
+    // Some arbitrary file size restrictions to try to keep it below reasonable
+    // limits.
     final pickedFile = await _picker.getImage(
         source: ImageSource.gallery,
         imageQuality: 75,
@@ -150,7 +189,7 @@ class _ImagesFeedState extends State<ImagesFeed> {
             ));
   }
 
-  // Run once image selection is confirmed.
+  /// Run once image selection is confirmed.
   Future<void> _postImage(File imageFile) async {
     bool tooLarge = false, requestError = false;
 

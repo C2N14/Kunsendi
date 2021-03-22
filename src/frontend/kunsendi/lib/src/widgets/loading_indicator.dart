@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class HomeLoadingCircle extends StatelessWidget {
+class LoadingCircleIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -16,7 +16,7 @@ class HomeLoadingCircle extends StatelessWidget {
   }
 }
 
-class HomeLoadingOverlay extends StatelessWidget {
+class LoadingOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -24,6 +24,6 @@ class HomeLoadingOverlay extends StatelessWidget {
             alignment: Alignment.topCenter,
             child: Padding(
                 padding: EdgeInsets.only(top: 30),
-                child: HomeLoadingCircle())));
+                child: LoadingCircleIndicator())));
   }
 }

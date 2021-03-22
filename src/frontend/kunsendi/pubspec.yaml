@@ -21,9 +21,10 @@ dependencies:
   jwt_decoder: ^2.0.0
   retry: ^3.1.0
   intl: ^0.17.0
-  cached_network_image: ^3.0.0-nullsafety
   image_picker: ^0.7.3
+  simple_animations: ^3.0.3
 
+  cached_network_image: ^3.0.0-nullsafety
 
 dev_dependencies:
   flutter_test:

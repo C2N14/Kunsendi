@@ -8,6 +8,8 @@ import 'package:retry/retry.dart';
 
 import 'globals.dart';
 
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+
 // Class for simplifying API responses.
 class ApiResponse {
   final int statusCode;
@@ -17,7 +19,7 @@ class ApiResponse {
 
   factory ApiResponse.fromHttpResponse(http.Response response,
       {bool bytes = false}) {
-    debugPrint(response.headers.toString());
+    // debugPrint(response.headers.toString());
     return ApiResponse(
         response.statusCode,
         bytes
@@ -35,17 +37,25 @@ class ApiAuthException implements Exception {
   ApiAuthException(this.cause);
 }
 
-// Singleton class for accessing the API.
+/// Singleton class for accessing the API.
 class ApiClient {
   static ApiClient? _instance;
   ApiClient._();
   static ApiClient getInstance() => _instance ??= ApiClient._();
 
   Timer? _sessionTimer;
+  http.Client _client = http.Client();
 
-  // Base function for generic HTTP request.
-  Future<http.Response> _httpRequest(Function requestFun, String path,
-      [bool? authRequired, Map<String, String>? headers, dynamic body]) async {
+  /// Base function for generic HTTP request.
+  ///
+  /// Returns either a [Response] or a [StreamedResponse].
+  Future<dynamic> _httpRequest(
+    Function requestFun,
+    String path, [
+    bool? authRequired,
+    Map<String, String>? headers,
+    dynamic body,
+  ]) async {
     return await retry(() async {
       // If authentication is required, try with the access token if not specified in the headers.
       if (authRequired ?? false) {
@@ -78,29 +88,52 @@ class ApiClient {
   }
 
   // Special HTTP requests.
-  // GET request.
-  Future<http.Response> _get(String path,
-          {bool? authRequired, Map<String, String>? headers}) async =>
-      this._httpRequest(http.get, path, authRequired, headers);
-  // POST request.
-  Future<http.Response> _post(String path,
-          {bool? authRequired,
-          Map<String, String>? headers,
-          dynamic body}) async =>
-      this._httpRequest(http.post, path, authRequired, headers, body);
-  // DELETE request.
-  Future<http.Response> _delete(String path,
-          {bool? authRequired, Map<String, String>? headers}) async =>
-      this._httpRequest(http.delete, path, authRequired, headers);
 
-  // Base function for Multipart HTTP requests.
-  // This is needed since the mechanism for doing multipart requests is totally
-  // different from regular requests in Dart's http library.
-  Future<http.Response> _multipartHttpRequest(String path,
-      [String type = 'GET',
-      bool? authRequired,
-      Map<String, String>? multipartHeaders,
-      http.MultipartFile? multipartFile]) async {
+  /// GET request.
+  ///
+  /// Returns either [Response] or a [StreamedResponse].
+  Future<dynamic> _get(
+    String path, {
+    bool? authRequired,
+    Map<String, String>? headers,
+  }) async =>
+      this._httpRequest(this._client.get, path, authRequired, headers);
+
+  /// POST request.
+  ///
+  /// Returns either [Response] or a [StreamedResponse].
+  Future<dynamic> _post(
+    String path, {
+    bool? authRequired,
+    Map<String, String>? headers,
+    dynamic body,
+  }) async =>
+      this._httpRequest(this._client.post, path, authRequired, headers, body);
+
+  /// DELETE request.
+  ///
+  /// Returns either [Response] or a [StreamedResponse].
+  Future<dynamic> _delete(
+    String path, {
+    bool? authRequired,
+    Map<String, String>? headers,
+  }) async =>
+      this._httpRequest(this._client.delete, path, authRequired, headers);
+
+  /// Base function for Multipart HTTP requests.
+  ///
+  /// Returns either [Response] or a [StreamedResponse].
+  ///
+  /// This is needed since the mechanism for doing multipart requests is totally
+  /// different from regular requests in Dart's http library.
+  Future<dynamic> _multipartHttpRequest(
+    String path, [
+    String type = 'GET',
+    bool? authRequired,
+    Map<String, String>? multipartHeaders,
+    http.MultipartFile? multipartFile,
+    bool? streamed,
+  ]) async {
     // Special http function to handle multipart request.
     final multiPostFunc =
         (Uri funTarget, {Map<String, String>? headers}) async {
@@ -111,7 +144,12 @@ class ApiClient {
       request.headers.addAll(headers ?? const {});
 
       final response = await request.send();
-      return http.Response.fromStream(response);
+
+      if (!(streamed ?? false)) {
+        return http.Response.fromStream(response);
+      } else {
+        return response;
+      }
     };
 
     // Use the base HTTP request.
@@ -120,18 +158,33 @@ class ApiClient {
   }
 
   // Specific Multipart HTTP requests.
-  // GET request.
-  Future<http.Response> _multipartGet(String path,
-          {bool? authRequired, Map<String, String>? headers}) async =>
-      this._multipartHttpRequest(path, 'GET', authRequired, headers);
-  // POST request.
-  Future<http.Response> _multipartPost(
-          String path, http.MultipartFile multipartFile,
-          {bool? authRequired, Map<String, String>? headers}) async =>
-      this._multipartHttpRequest(
-          path, 'POST', authRequired, headers, multipartFile);
 
-  // Tries using the stored refresh token to refresh both tokens.
+  /// Multipart GET request.
+  ///
+  /// Returns either [Response] or a [StreamedResponse].
+  Future<dynamic> _multipartGet(
+    String path, {
+    bool? authRequired,
+    Map<String, String>? headers,
+    bool? streamed,
+  }) async =>
+      this._multipartHttpRequest(
+          path, 'GET', authRequired, headers, null, streamed);
+
+  /// Multipart POST request.
+  ///
+  /// Returns either [Response] or a [StreamedResponse].
+  Future<dynamic> _multipartPost(
+    String path,
+    http.MultipartFile multipartFile, {
+    bool? authRequired,
+    Map<String, String>? headers,
+    bool? streamed,
+  }) async =>
+      this._multipartHttpRequest(
+          path, 'POST', authRequired, headers, multipartFile, streamed);
+
+  /// Tries using the stored refresh token to refresh both tokens.
   Future<bool> _refreshedSession() async {
     final refreshToken =
         await AppGlobals.secureStorage!.read(key: 'refresh_token');
@@ -153,13 +206,13 @@ class ApiClient {
     return loggedIn;
   }
 
-  // Refreshes the tokens and sets up a timer to refresh tokens periodically.
+  /// Refreshes the tokens and sets up a timer to refresh tokens periodically.
   Future<bool> initSession() async {
     this._sessionTimer?.cancel();
     return await this._refreshedSession();
   }
 
-  // Deletes the tokens.
+  /// Deletes the tokens to end the session.
   Future<void> endSession() async {
     if (this._sessionTimer?.isActive ?? false) {
       this._sessionTimer?.cancel();
@@ -168,8 +221,9 @@ class ApiClient {
     await AppGlobals.secureStorage!.delete(key: 'access_token');
   }
 
-  // By default gets the logged user's username and id.
-  // Optionally can be used to search a specific username or id.
+  /// By default gets the logged user's username and id.
+  ///
+  /// Optionally can be used to search a specific username or id.
   Future<ApiResponse> getUserInfo({String? id, String? username}) async {
     final params = Uri(queryParameters: {
       if (id != null) 'id': id,
@@ -180,7 +234,7 @@ class ApiClient {
     ));
   }
 
-  // Registers a new account.
+  /// Registers a new account.
   Future<ApiResponse> register(
       String username, String email, String password) async {
     return ApiResponse.fromHttpResponse(await this._post(
@@ -194,7 +248,7 @@ class ApiClient {
     ));
   }
 
-  // Deletes the logged user's account.
+  /// Deletes the logged user's account.
   Future<ApiResponse> unregister() async {
     return ApiResponse.fromHttpResponse(await this._delete(
       '/v1/auth/users',
@@ -202,14 +256,14 @@ class ApiClient {
     ));
   }
 
-  // Finds if an username is available.
+  /// Finds if a username is available.
   Future<ApiResponse> getUsernameAvailable(String username) async {
     return ApiResponse.fromHttpResponse(await this._get(
       '/v1/auth/users/$username',
     ));
   }
 
-  // Logs in and returns the appropiate tokens.
+  /// Logs in and returns the appropriate tokens.
   Future<ApiResponse> login(String username, String password) async {
     return ApiResponse.fromHttpResponse(await this._post(
       '/v1/auth/sessions',
@@ -221,9 +275,11 @@ class ApiClient {
     ));
   }
 
-  // By default gets a list of the last uploaded images.
-  // Optionally can be used to search images by username, id, posted time range
-  // and limit the number of results.
+  /// By default gets a list of the last uploaded images.
+  ///
+  /// Optionally can be used to search images by username, id, posted time range
+  ///
+  /// and limit the number of results.
   Future<ApiResponse> listImages(
       {String? uploader,
       String? uploaderId,
@@ -237,14 +293,18 @@ class ApiClient {
       if (to != null) 'to': (to.millisecondsSinceEpoch / 1000).toString(),
       if (limit != null) 'limit': limit.toString(),
     });
-    return ApiResponse.fromHttpResponse(await this._get(
+    final resp = await this._get(
       '/v1/images${params.toString()}',
       authRequired: true,
-    ));
+    );
+    final tmp = ApiResponse.fromHttpResponse(resp);
+    // debugPrint(tmp.payload.toString());
+    return tmp;
   }
 
-  // Posts an image on behalf of the logged user.
-  // One of the two multipart requests in the client.
+  /// Posts an image on behalf of the logged user.
+  ///
+  /// One of the two multipart requests in the client.
   Future<ApiResponse> postImage(File imageFile) async {
     return ApiResponse.fromHttpResponse(
         await this._multipartPost(
@@ -255,20 +315,22 @@ class ApiClient {
         bytes: true);
   }
 
-  // Gets an image file by its filename.
-  // One of the two multipart requests in the client.
+  /// Gets an image file by its filename.
+  ///
+  /// One of the two multipart requests in the client, and currently not used since
+  /// CachedNetworkImage needs its own FileService that generates StreamedResponse's.
   Future<ApiResponse> getImage(
     String filename,
   ) async {
     return ApiResponse.fromHttpResponse(
         await this._multipartGet(
-          '/v1/images/$filename',
+          '/v1/images',
           authRequired: true,
         ),
         bytes: true);
   }
 
-  // Deletes an image by its filename.
+  /// Deletes an image by its filename.
   Future<ApiResponse> deleteImage(String filename) async {
     return ApiResponse.fromHttpResponse(await this._delete(
       '/v1/images/$filename',
@@ -276,10 +338,47 @@ class ApiClient {
     ));
   }
 
-  // Gets the server status.
+  /// Gets the server status.
   Future<ApiResponse> status() async {
     return ApiResponse.fromHttpResponse(await this._get(
       '/v1/status',
     ));
   }
+}
+
+/// [FileService] exclusive for image API requests.
+///
+/// Used to override requests on CachedNetworkImage's.
+class ApiFileService extends HttpFileService {
+  ApiClient _client = ApiClient.getInstance();
+
+  /// Where the magic occurs.
+  @override
+  Future<FileServiceResponse> get(String filename,
+      {Map<String, String>? headers}) async {
+    return HttpGetResponse(await _client._multipartGet(
+      '/v1/images/$filename',
+      authRequired: true,
+      streamed: true,
+    ));
+  }
+}
+
+/// Custom [CacheManager] for use on [CachedNetworkImage].
+///
+/// Pretty much an equivalent to [DefaultCacheManager], but with a different key
+/// and [ApiFileService]
+class ApiCacheManager extends CacheManager with ImageCacheManager {
+  static const key = 'kunsendiCachedImageData';
+
+  static final ApiCacheManager _instance = ApiCacheManager._();
+  factory ApiCacheManager() {
+    return _instance;
+  }
+
+  ApiCacheManager._()
+      : super(Config(
+          key,
+          fileService: ApiFileService(),
+        ));
 }

@@ -17,11 +17,15 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.deepPurple,
+        primaryColor: Colors.deepPurple[800],
+        accentColor: Colors.deepPurpleAccent,
       ),
       darkTheme: ThemeData(
-          brightness: Brightness.dark,
-          primarySwatch: Colors.deepPurple,
-          accentColor: Colors.deepPurpleAccent),
+        brightness: Brightness.dark,
+        primarySwatch: Colors.deepPurple,
+        primaryColor: Colors.deepPurple,
+        accentColor: Colors.deepPurpleAccent,
+      ),
       themeMode: ThemeMode.system,
       home: SplashPage(),
     );

@@ -8,7 +8,7 @@ import 'package:kunsendi/src/utils.dart';
 import '../globals.dart';
 import '../widgets/app_alert_dialog.dart';
 import '../widgets/home_button.dart';
-import '../widgets/home_loading.dart';
+import '../widgets/loading_indicator.dart';
 import '../widgets/home_logo.dart';
 import '../widgets/home_text_field.dart';
 import 'login_page.dart';
@@ -182,7 +182,7 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
           Visibility(
             visible: this._loading,
-            child: HomeLoadingOverlay(),
+            child: LoadingOverlay(),
           ),
         ]));
   }
