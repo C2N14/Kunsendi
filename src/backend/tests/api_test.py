@@ -1,5 +1,6 @@
 import filecmp
 import json
+from math import trunc
 import os
 import shutil
 import sys
@@ -21,6 +22,7 @@ package_path = str(Path(__file__).parents[2])
 if package_path not in sys.path:
     sys.path.append(package_path)
 
+# make sure every time in the libraries is in reference with this time
 from backend.api import (ACCESS_TOKEN_EXPIRATION, REFRESH_TOKEN_EXPIRATION,
                          UPLOAD_PATH, models)
 from backend.api.app import create_app
@@ -138,6 +140,25 @@ class SpecialImageApiTest(ImageApiTest):
         # assign the first two images to authenticated user
         for image in models.Image.objects()[:2]:
             image.update(uploader=user.username, uploader_id=user.id)
+
+
+class StatusTest(ApiTest, unittest.TestCase):
+    """Simple test case for server status"""
+    @patch('backend.api.blueprints.info.START_TIME', starting_now)
+    def test_server_uptime(self):
+        url = '/api/v1/status'
+        method = self.client.get
+
+        delta = timedelta(seconds=1)
+        time_difference = trunc(delta.total_seconds() * 1000)
+
+        with freeze_time(starting_now + delta):
+            response = method(url)
+            self.assertEqual(response.status_code, HTTPStatus.OK)
+
+            response_payload = json.loads(response.data)
+
+            self.assertDictEqual(response_payload, {'uptime': time_difference})
 
 
 class AuthenticationBasicTest(ApiTest, unittest.TestCase):
@@ -293,8 +314,8 @@ class AuthenticationSecondaryTest(AuthenticatedApiTest, unittest.TestCase):
                         self.tokens[f'{token_type}_token']))
                 self.assertEqual(response.status_code, HTTPStatus.GONE)
 
-    @freeze_time(immediate_now + ACCESS_TOKEN_EXPIRATION + timedelta(seconds=1)
-                 )
+    @freeze_time(immediate_now + ACCESS_TOKEN_EXPIRATION +
+                 timedelta(milliseconds=1))
     def test_refresh_token(self):
         url = '/api/v1/auth/sessions'
         method = self.client.get
